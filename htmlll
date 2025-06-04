@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Flight Easy</title>
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4faff;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 40px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+      padding: 30px 25px;
+      width: 100%;
+      max-width: 350px;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .card h2 {
+      color: #0077cc;
+      font-size: 1.5em;
+      margin-bottom: 15px;
+      border-left: 4px solid #0077cc;
+      padding-left: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card p, .card li, .card blockquote {
+      font-size: 1em;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    .card ul {
+      padding-left: 20px;
+      margin: 0;
+    }
+
+    .card blockquote {
+      background: #eaf6ff;
+      border-left: 5px solid #0077cc;
+      padding: 10px 15px;
+      margin: 10px 0;
+      font-style: italic;
+    }
+
+    a {
+      color: #0077cc;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 768px) {
+      .card {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <div class="card">
+      <h2><i class="fas fa-plane-departure"></i> About Flight Easy</h2>
+      <p><strong>Flight Easy</strong> is your trusted partner for seamless flight bookings. Whether you're flying domestic or international, we make travel planning effortless with unbeatable deals and 24/7 support.</p>
+    </div>
+
+    <!-- <div class="card">
+      <h2><i class="fas fa-star"></i>Why Choose Us</h2>
+      <ul>
+        <li>✅Easy and fast booking process</li>
+        <li>✅Lowest fare guarantee</li>
+        <li>✅24/7 customer support</li>
+        <li>✅Real-time flight tracking</li>
+      </ul>
+    </div> -->
+    <div class="card" style="margin-bottom: 20px;">
+  <h2><i class="fas fa-star"></i> Why Choose Us</h2>
+  <ul style="list-style: none; padding: 0; margin: 0;">
+    <li style="margin: 10px 0; font-size: 16px;">
+      <i class="fas fa-check-circle" style="color: green; margin-right: 10px;"></i>Easy and fast Booking Process
+    </li>
+    <li style="margin: 10px 0; font-size: 16px;">
+      <i class="fas fa-check-circle" style="color: green; margin-right: 10px;"></i>Lowest fare guarantee
+    </li>
+    <li style="margin: 10px 0; font-size: 16px;">
+      <i class="fas fa-check-circle" style="color: green; margin-right: 10px;"></i>24/7 customer support
+    </li>
+    <li style="margin: 10px 0; font-size: 16px;">
+      <i class="fas fa-check-circle" style="color: green; margin-right: 10px;"></i>Real-time flight tracking
+    </li>
+  </ul>
+</div>
+
+    <!-- <div class="card">
+      <h2><i class="fas fa-map-marked-alt"></i> Popular Destinations</h2>
+      <p>Explore top routes like <strong>Bengaluru → Delhi</strong>, <strong>Mumbai → Delhi</strong>, and more!</p>
+    </div> -->
+    <div style="background: linear-gradient(to right, #f8f9fa, #e9ecef); border-radius: 16px; padding: 24px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1); max-width: 500px; margin: 20px auto; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <h2 style="color: #2c3e50; font-size: 24px; display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+    <i class="fas fa-map-marked-alt" style="color: #007bff;"></i> Popular Destinations
+  </h2>
+  <p style="color: #444; font-size: 16px;">
+    Explore top routes like
+    <strong style="color: #007bff;">Bengaluru → Delhi</strong>,
+    <strong style="color: #007bff;">Mumbai → Delhi</strong>,
+    and more!
+  </p>
+</div>
+
+    <div class="card">
+      <h2><i class="fas fa-comment-dots"></i> Customer Testimonials</h2>
+      <blockquote>“Flight Easy made my trip so smooth and affordable. Highly recommended!” – Priya R.</blockquote>
+      <blockquote>“Excellent service and great deals. Booking was a breeze!” – Arjun M.</blockquote>
+    </div>
+
+    <div class="card">
+      <h2><i class="fas fa-envelope-open-text"></i> Contact Us</h2>
+      <p>Email: <a href="mailto:support@flighteasy.com">support@flighteasy.com</a><br>
+      Phone: +91-98765-43210</p>
+    </div>
+
+  </div>
+
+</body>
+</html>
