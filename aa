@@ -1,1 +1,26 @@
-abb
+DECLARE
+    l_blob       BLOB;
+    l_file_name  VARCHAR2(255);
+BEGIN
+    -- get latest uploaded Excel
+    SELECT blob_content, filename
+      INTO l_blob, l_file_name
+      FROM (
+             SELECT blob_content, filename
+               FROM apex_application_temp_files
+              WHERE application_id = :APP_ID
+              ORDER BY created_on DESC
+           )
+     WHERE ROWNUM = 1;
+
+    -- dump column names dynamically
+    FOR r IN (
+        SELECT *
+          FROM table(
+                 apex_data_parser.get_xlsx_worksheets(p_content => l_blob)
+               )
+    )
+    LOOP
+        dbms_output.put_line('Row dump => ' || r.ROWID);
+    END LOOP;
+END;abb
