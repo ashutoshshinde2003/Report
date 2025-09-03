@@ -2,7 +2,7 @@ DECLARE
     l_blob       BLOB;
     l_file_name  VARCHAR2(255);
 BEGIN
-    -- get latest uploaded Excel
+    -- Get latest uploaded file from APEX temp files
     SELECT blob_content, filename
       INTO l_blob, l_file_name
       FROM (
@@ -13,14 +13,22 @@ BEGIN
            )
      WHERE ROWNUM = 1;
 
-    -- dump column names dynamically
-    FOR r IN (
+    dbms_output.put_line('Uploaded file: ' || l_file_name);
+
+    -- Show all worksheets available
+    FOR rec IN (
         SELECT *
           FROM table(
-                 apex_data_parser.get_xlsx_worksheets(p_content => l_blob)
+                 apex_data_parser.get_xlsx_worksheets(
+                     p_content   => l_blob,
+                     p_file_name => l_file_name
+                 )
                )
     )
     LOOP
-        dbms_output.put_line('Row dump => ' || r.ROWID);
+        dbms_output.put_line('Sheet found => ' ||
+                             rec.sheet_name || 
+                             ' (Pos: ' || rec.position || 
+                             ', Last row: ' || rec.last_row || ')');
     END LOOP;
-END;abb
+END;
