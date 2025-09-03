@@ -1,8 +1,17 @@
--- simple: parse first sheet only (default)
-FOR rec IN (
-  SELECT * FROM TABLE(
-    apex_data_parser.parse(p_content => l_blob, p_file_name => l_file_name, p_skip_rows => 1)
+-- Run this in SQL Workshop -> SQL Commands
+SELECT ws.*
+FROM (
+  -- pick the most recent uploaded file (no app filter so it always picks latest)
+  SELECT blob_content
+  FROM (
+    SELECT blob_content,
+           ROW_NUMBER() OVER (ORDER BY created_on DESC) rn
+    FROM apex_application_temp_files
   )
-) LOOP
-  -- insert into BULK_RESOLUTION_DATA (Jobs)
-END LOOP;
+  WHERE rn = 1
+) f,
+TABLE(
+  apex_data_parser.get_xlsx_worksheets(
+    p_content => f.blob_content
+  )
+) ws;
