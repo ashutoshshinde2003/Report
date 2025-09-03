@@ -1,34 +1,8 @@
-DECLARE
-    l_blob       BLOB;
-    l_file_name  VARCHAR2(255);
-BEGIN
-    -- Get latest uploaded file from APEX temp files
-    SELECT blob_content, filename
-      INTO l_blob, l_file_name
-      FROM (
-             SELECT blob_content, filename
-               FROM apex_application_temp_files
-              WHERE application_id = :APP_ID
-              ORDER BY created_on DESC
-           )
-     WHERE ROWNUM = 1;
-
-    dbms_output.put_line('Uploaded file: ' || l_file_name);
-
-    -- Show all worksheets available
-    FOR rec IN (
-        SELECT *
-          FROM table(
-                 apex_data_parser.get_xlsx_worksheets(
-                     p_content   => l_blob,
-                     p_file_name => l_file_name
-                 )
-               )
-    )
-    LOOP
-        dbms_output.put_line('Sheet found => ' ||
-                             rec.sheet_name || 
-                             ' (Pos: ' || rec.position || 
-                             ', Last row: ' || rec.last_row || ')');
-    END LOOP;
-END;
+-- simple: parse first sheet only (default)
+FOR rec IN (
+  SELECT * FROM TABLE(
+    apex_data_parser.parse(p_content => l_blob, p_file_name => l_file_name, p_skip_rows => 1)
+  )
+) LOOP
+  -- insert into BULK_RESOLUTION_DATA (Jobs)
+END LOOP;
