@@ -6,3 +6,52 @@ VALUES (
   'SUCCESSFUL',
   :APP_USER
 );
+
+
+DECLARE
+    l_blob       BLOB;
+    l_file_name  VARCHAR2(255);
+BEGIN
+    -- get latest uploaded file
+    SELECT blob_content, filename
+      INTO l_blob, l_file_name
+      FROM (
+             SELECT blob_content, filename
+               FROM apex_application_temp_files
+              WHERE application_id = :APP_ID
+              ORDER BY created_on DESC
+           )
+     WHERE ROWNUM = 1;
+
+    -- parse second sheet (Cases)
+    FOR rec IN (
+        SELECT *
+          FROM TABLE(
+                 apex_data_parser.parse(
+                     p_content    => l_blob,
+                     p_file_name  => l_file_name,
+                     
+                     p_skip_rows  => 1
+                 )
+               )
+    )
+    LOOP
+        INSERT INTO bulk_resolution_data1 (
+            case_id,
+            job_id,
+            status,
+            case_status
+        )
+        VALUES (
+            rec.col001,  -- adjust mapping as per your Excel columns
+            rec.col002,
+            rec.col003,
+            rec.col004
+        );
+    END LOOP;
+
+    DELETE FROM apex_application_temp_files
+     WHERE filename = l_file_name;
+
+    COMMIT;
+END;
