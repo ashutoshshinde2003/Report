@@ -1,16 +1,9 @@
 DECLARE
-    l_blob        BLOB;
-    l_file_name   VARCHAR2(255);
-    l_any_success BOOLEAN := FALSE;
-    l_any_failed  BOOLEAN := FALSE;
-    l_err_msg     VARCHAR2(4000);
-    l_job_id      NUMBER;
+    l_blob      BLOB;
+    l_file_name VARCHAR2(255);
+    l_success   BOOLEAN := TRUE;
+    l_err_msg   VARCHAR2(4000);
 BEGIN
-    -- Generate job id once
-    SELECT bulk_resolution_seq.NEXTVAL
-    INTO l_job_id
-    FROM dual;
-
     -- get latest uploaded file
     SELECT blob_content, filename
     INTO l_blob, l_file_name
@@ -22,7 +15,7 @@ BEGIN
     )
     WHERE ROWNUM = 1;
 
-    -- parse excel sheet
+    -- parse rows
     FOR rec IN (
         SELECT *
         FROM TABLE(
@@ -35,6 +28,14 @@ BEGIN
     )
     LOOP
         BEGIN
+            DBMS_OUTPUT.PUT_LINE(
+                'Row -> col001=' || rec.col001 ||
+                ', col002=' || rec.col002 ||
+                ', col003=' || rec.col003 ||
+                ', col004=' || rec.col004 ||
+                ', col005=' || rec.col005
+            );
+
             INSERT INTO bulk_resolution_data1 (
                 case_id,
                 job_id,
@@ -42,70 +43,43 @@ BEGIN
                 case_status,
                 pts_res_group_id
             ) VALUES (
-                rec.col001,   -- adjust column mapping
-                l_job_id,
+                rec.col001,
+                rec.col002,
                 rec.col003,
                 rec.col004,
                 rec.col005
             );
-
-            l_any_success := TRUE;
-
         EXCEPTION
             WHEN OTHERS THEN
-                l_any_failed := TRUE;
+                l_success := FALSE;
                 l_err_msg := SQLERRM;
+
                 DBMS_OUTPUT.PUT_LINE(
-                    'Error inserting row with Case ID=' || rec.col001 ||
+                    '❌ Error inserting row with Case ID=' || rec.col001 ||
                     ' : ' || l_err_msg
                 );
         END;
     END LOOP;
 
-    -- cleanup temp file
+    -- cleanup
     DELETE FROM apex_application_temp_files
     WHERE filename = l_file_name;
 
-    -- Insert header log based on results
-    IF l_any_success AND NOT l_any_failed THEN
-        -- All rows succeeded
-        INSERT INTO bulk_resolution_data (
-            job_id, submission, date_added, status, user_added
-        )
-        VALUES (
-            l_job_id,
-            100,
-            SYSDATE,
-            'SUCCESSFUL',
-            :APP_USER
-        );
-
-    ELSIF l_any_success AND l_any_failed THEN
-        -- Some rows failed
-        INSERT INTO bulk_resolution_data (
-            job_id, submission, date_added, status, user_added
-        )
-        VALUES (
-            l_job_id,
-            100,
-            SYSDATE,
-            'PARTIAL',
-            :APP_USER
-        );
-
-    ELSE
-        -- All rows failed
-        INSERT INTO bulk_resolution_data (
-            job_id, submission, date_added, status, user_added
-        )
-        VALUES (
-            l_job_id,
-            100,
-            SYSDATE,
-            'FAILED',
-            :APP_USER
-        );
-    END IF;
+    -- Insert header log
+    INSERT INTO bulk_resolution_data (
+        job_id,
+        submission,
+        date_added,
+        status,
+        user_added
+    )
+    VALUES (
+        bulk_resolution_seq.NEXTVAL,
+        100,
+        SYSDATE,
+        CASE WHEN l_success THEN 'SUCCESSFUL' ELSE 'FAILED' END,
+        :APP_USER
+    );
 
     COMMIT;
 
@@ -114,11 +88,12 @@ EXCEPTION
         l_err_msg := SQLERRM;
         DBMS_OUTPUT.PUT_LINE('Fatal error: ' || l_err_msg);
 
-        ROLLBACK;
-
-        -- log top-level failure
         INSERT INTO bulk_resolution_data (
-            job_id, submission, date_added, status, user_added
+            job_id,
+            submission,
+            date_added,
+            status,
+            user_added
         )
         VALUES (
             bulk_resolution_seq.NEXTVAL,
@@ -128,5 +103,5 @@ EXCEPTION
             :APP_USER
         );
 
-        COMMIT;
+        ROLLBACK;
 END;
