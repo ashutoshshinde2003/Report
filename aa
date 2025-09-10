@@ -1,107 +1,15 @@
-DECLARE
-    l_blob      BLOB;
-    l_file_name VARCHAR2(255);
-    l_success   BOOLEAN := TRUE;
-    l_err_msg   VARCHAR2(4000);
-BEGIN
-    -- get latest uploaded file
-    SELECT blob_content, filename
-    INTO l_blob, l_file_name
-    FROM (
-        SELECT blob_content, filename
-        FROM apex_application_temp_files
-        WHERE application_id = :APP_ID
-        ORDER BY created_on DESC
+SELECT col001, col002, col003, col004, col005
+FROM TABLE(
+    apex_data_parser.parse(
+        p_content   => (SELECT blob_content 
+                        FROM apex_application_temp_files 
+                        WHERE application_id = :APP_ID
+                        ORDER BY created_on DESC FETCH FIRST 1 ROWS ONLY),
+        p_file_name => (SELECT filename 
+                        FROM apex_application_temp_files 
+                        WHERE application_id = :APP_ID
+                        ORDER BY created_on DESC FETCH FIRST 1 ROWS ONLY),
+        p_skip_rows => 1
     )
-    WHERE ROWNUM = 1;
-
-    -- parse rows
-    FOR rec IN (
-        SELECT *
-        FROM TABLE(
-            apex_data_parser.parse(
-                p_content   => l_blob,
-                p_file_name => l_file_name,
-                p_skip_rows => 1
-            )
-        )
-    )
-    LOOP
-        BEGIN
-            DBMS_OUTPUT.PUT_LINE(
-                'Row -> col001=' || rec.col001 ||
-                ', col002=' || rec.col002 ||
-                ', col003=' || rec.col003 ||
-                ', col004=' || rec.col004 ||
-                ', col005=' || rec.col005
-            );
-
-            INSERT INTO bulk_resolution_data1 (
-                case_id,
-                job_id,
-                status,
-                case_status,
-                pts_res_group_id
-            ) VALUES (
-                rec.col001,
-                rec.col002,
-                rec.col003,
-                rec.col004,
-                rec.col005
-            );
-        EXCEPTION
-            WHEN OTHERS THEN
-                l_success := FALSE;
-                l_err_msg := SQLERRM;
-
-                DBMS_OUTPUT.PUT_LINE(
-                    '❌ Error inserting row with Case ID=' || rec.col001 ||
-                    ' : ' || l_err_msg
-                );
-        END;
-    END LOOP;
-
-    -- cleanup
-    DELETE FROM apex_application_temp_files
-    WHERE filename = l_file_name;
-
-    -- Insert header log
-    INSERT INTO bulk_resolution_data (
-        job_id,
-        submission,
-        date_added,
-        status,
-        user_added
-    )
-    VALUES (
-        bulk_resolution_seq.NEXTVAL,
-        100,
-        SYSDATE,
-        CASE WHEN l_success THEN 'SUCCESSFUL' ELSE 'FAILED' END,
-        :APP_USER
-    );
-
-    COMMIT;
-
-EXCEPTION
-    WHEN OTHERS THEN
-        l_err_msg := SQLERRM;
-        DBMS_OUTPUT.PUT_LINE('Fatal error: ' || l_err_msg);
-
-        INSERT INTO bulk_resolution_data (
-            job_id,
-            submission,
-            date_added,
-            status,
-            user_added
-        )
-        VALUES (
-            bulk_resolution_seq.NEXTVAL,
-            100,
-            SYSDATE,
-            'FAILED',
-            :APP_USER
-        );
-
-        ROLLBACK;
-END;
+)
+WHERE ROWNUM <= 10;
