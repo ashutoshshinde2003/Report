@@ -290,6 +290,15 @@ BEGIN
     )
     LOOP
         BEGIN
+            -- check if row is completely blank → skip it
+            IF rec.case_id IS NULL 
+               AND rec.job_id IS NULL 
+               AND rec.status IS NULL 
+               AND rec.case_status IS NULL 
+               AND rec.pts_res_group_id IS NULL THEN
+                CONTINUE;
+            END IF;
+
             -- validate required column
             IF rec.case_id IS NULL THEN
                 l_success := FALSE;
