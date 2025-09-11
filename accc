@@ -74,3 +74,36 @@ BEGIN
         );
     END LOOP;
 END;
+
+
+
+
+
+
+
+begin
+    -- Clear previous preview collection
+    if apex_collection.collection_exists('EXCEL_PREVIEW') then
+        apex_collection.delete_collection('EXCEL_PREVIEW');
+    end if;
+
+    apex_collection.create_collection('EXCEL_PREVIEW');
+
+    -- Parse the uploaded Excel file
+    for r in (
+        select * from table(
+            apex_data_parser.parse(
+                p_content   => :P1_FILE_UPLOAD,
+                p_file_name => :P1_FILE_UPLOAD_FILENAME
+            )
+        )
+    ) loop
+        -- Insert each row into the collection
+        apex_collection.add_member(
+            p_collection_name => 'EXCEL_PREVIEW',
+            p_c001 => r.column_values(1),
+            p_c002 => r.column_values(2),
+            p_c003 => r.column_values(3)
+        );
+    end loop;
+end;
