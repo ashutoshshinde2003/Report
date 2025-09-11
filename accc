@@ -35,3 +35,42 @@ FROM TABLE(
         p_skip_rows => 1
     )
 )
+
+
+
+DECLARE
+    l_blob      BLOB;
+    l_filename  VARCHAR2(255);
+BEGIN
+    SELECT blob_content, filename
+    INTO   l_blob, l_filename
+    FROM apex_application_temp_files
+    WHERE name = :P1_FILE_UPLOAD;
+
+    FOR rec IN (
+        SELECT *
+        FROM TABLE(
+            apex_data_parser.parse(
+                p_content   => l_blob,
+                p_file_name => l_filename,
+                p_skip_rows => 1
+            )
+        )
+    )
+    LOOP
+        INSERT INTO my_temp_table (
+            job_id,
+            submission,
+            date_added,
+            status,
+            user_added
+        )
+        VALUES (
+            rec.col001,
+            rec.col002,
+            rec.col003,
+            rec.col004,
+            rec.col005
+        );
+    END LOOP;
+END;
