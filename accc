@@ -82,12 +82,11 @@ END;
 
 
 declare
-    l_blob          blob;
-    l_parsed_rows   apex_t_varchar2;  -- APEX collection compatible type
-    l_row           apex_t_varchar2;
-    l_sql           clob;
+    l_blob    blob;
+    l_data    apex_data_parser.t_values;        -- Holds all rows
+    l_row     apex_data_parser.t_column_values; -- Holds one row's columns
 begin
-    -- Get the uploaded file BLOB
+    -- Get the uploaded Excel BLOB
     select blob_content
     into l_blob
     from apex_application_temp_files
@@ -100,22 +99,23 @@ begin
 
     apex_collection.create_collection('EXCEL_PREVIEW');
 
-    -- Parse Excel file dynamically into rows using apex_data_parser.parse
-    for r in (
-        select * from table(
-            apex_data_parser.parse(
-                p_content => l_blob,
-                p_file_name => :P1_FILE_UPLOAD_FILENAME
-            )
-        )
-    ) loop
-        -- Add each row to collection
+    -- Parse Excel
+    l_data := apex_data_parser.parse(
+                  p_content   => l_blob,
+                  p_file_name => :P1_FILE_UPLOAD_FILENAME
+              );
+
+    -- Loop through each row
+    for i in 1 .. l_data.count loop
+        l_row := l_data(i).column_values;  -- Get one row
+
         apex_collection.add_member(
             p_collection_name => 'EXCEL_PREVIEW',
-            p_c001 => r.column1,
-            p_c002 => r.column2,
-            p_c003 => r.column3
-            -- Add more p_c0XX if Excel has more columns
+            p_c001 => l_row(1),  -- Column 1
+            p_c002 => l_row(2),  -- Column 2
+            p_c003 => l_row(3),  -- Column 3
+            p_c004 => l_row(4),  -- Column 4
+            p_c005 => l_row(5)   -- Column 5
         );
     end loop;
 end;
