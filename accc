@@ -10,3 +10,28 @@ FROM TABLE(
         p_skip_rows => 1  -- skip header row if needed
     )
 )
+
+
+
+SELECT name, filename, created_on 
+FROM apex_application_temp_files
+ORDER BY created_on DESC;
+
+
+SELECT
+    col001 AS job_id,
+    col002 AS submission,
+    TO_DATE(col003, 'DD/MM/YYYY') AS date_added,
+    col004 AS status,
+    col005 AS user_added
+FROM TABLE(
+    apex_data_parser.parse(
+        p_content   => (SELECT blob_content
+                        FROM apex_application_temp_files
+                        WHERE name = :P1_FILE),
+        p_file_name => (SELECT filename
+                        FROM apex_application_temp_files
+                        WHERE name = :P1_FILE),
+        p_skip_rows => 1
+    )
+)
