@@ -1,0 +1,12 @@
+SELECT *
+FROM TABLE(
+    apex_data_parser.parse(
+        p_content   => (SELECT blob_content
+                        FROM apex_application_temp_files
+                        WHERE name = :P1_FILE),  -- uploaded file
+        p_file_name => (SELECT filename
+                        FROM apex_application_temp_files
+                        WHERE name = :P1_FILE),
+        p_skip_rows => 1  -- skip header row if needed
+    )
+)
