@@ -101,3 +101,16 @@ SELECT
     AS cancel_button
 FROM bulk_resolution_data
 ORDER BY job_id DESC
+
+
+
+
+BEGIN
+  DELETE FROM bulk_resolution_data1
+   WHERE job_id = :P5_JOB_ID;
+
+  DELETE FROM bulk_resolution_data
+   WHERE job_id = :P5_JOB_ID;
+
+  COMMIT;
+END;
