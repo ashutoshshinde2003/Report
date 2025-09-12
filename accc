@@ -54,9 +54,10 @@ SELECT
     user_added,
 
     -- Virtual column with Cancel button
-    '<button class="t-Button t-Button--danger t-Button--small" '||
-    'onclick="apex.submit({request: ''CANCEL_'||job_id||'''});return false;">Cancel</button>' 
+    '<button class="t-Button t-Button--danger t-Button--small" 
+        onclick="apex.item(''P5_JOB_ID'').setValue('||job_id||');
+                 apex.submit({request:''CANCEL_ROW''});return false;">Cancel</button>' 
     AS cancel_button
 
 FROM bulk_resolution_data
-ORDER BY job_id DESC;
+ORDER BY job_id DESC
