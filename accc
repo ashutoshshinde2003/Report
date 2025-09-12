@@ -41,3 +41,23 @@ SELECT
 
 FROM bulk_resolution_data
 ORDER BY job_id DESC
+
+
+
+
+
+SELECT 
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+
+    -- APEX link column to cancel
+    APEX_PAGE.GET_URL(
+        p_page   => :APP_PAGE_ID,            -- current page
+        p_request=> 'CANCEL_'||job_id        -- request string
+    ) AS cancel_link
+
+FROM bulk_resolution_data
+ORDER BY job_id DESC
