@@ -83,3 +83,21 @@ EXCEPTION
     APEX_DEBUG.ERROR('Error deleting JOB_ID='||:P5_JOB_ID||' - '||SQLERRM);
     RAISE;
 END;
+
+
+
+
+
+SELECT 
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+
+    -- Virtual column with Cancel link (no submit yet)
+    '<button class="t-Button t-Button--danger t-Button--small cancel-row" 
+        data-jobid="'||job_id||'">Cancel</button>' 
+    AS cancel_button
+FROM bulk_resolution_data
+ORDER BY job_id DESC
