@@ -53,11 +53,10 @@ SELECT
     status,
     user_added,
 
-    -- APEX link column to cancel
-    APEX_PAGE.GET_URL(
-        p_page   => :APP_PAGE_ID,            -- current page
-        p_request=> 'CANCEL_'||job_id        -- request string
-    ) AS cancel_link
+    -- Virtual column with Cancel button
+    '<button class="t-Button t-Button--danger t-Button--small" '||
+    'onclick="apex.submit({request: ''CANCEL_'||job_id||'''});return false;">Cancel</button>' 
+    AS cancel_button
 
 FROM bulk_resolution_data
-ORDER BY job_id DESC
+ORDER BY job_id DESC;
