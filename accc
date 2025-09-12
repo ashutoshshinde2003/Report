@@ -22,3 +22,22 @@ EXCEPTION
         DBMS_OUTPUT.PUT_LINE('Error deleting rows: ' || SQLERRM);
         raise;
 END;
+
+
+
+
+
+SELECT 
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+
+    -- Virtual column with Cancel button
+    '<button class="t-Button t-Button--danger t-Button--small" '||
+    'onclick="apex.submit({request: ''CANCEL_'||job_id||'''});return false;">Cancel</button>' 
+    AS cancel_button
+
+FROM bulk_resolution_data
+ORDER BY job_id DESC
