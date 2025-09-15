@@ -67,4 +67,40 @@ ORDER BY job_id DESC
 
 
 
+SELECT 
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+    -- CANCEL button: sets P5_JOB_ID in browser and submits with request CANCEL_ROW
+    '<button type="button" class="t-Button t-Button--danger t-Button--small cancel-row" '
+    || 'onclick="apex.item(''P5_JOB_ID'').setValue('||job_id||'); apex.submit({request: ''CANCEL_ROW''}); return false;">Cancel</button>'
+    AS cancel_button
+FROM bulk_resolution_data
+ORDER BY job_id DESC
 
+
+
+
+BEGIN
+  -- basic safety: ensure P5_JOB_ID provided
+  IF :P5_JOB_ID IS NULL THEN
+    raise_application_error(-20001, 'No JOB_ID provided for delete.');
+  END IF;
+
+  -- delete details first
+  DELETE FROM bulk_resolution_data1
+   WHERE job_id = TO_NUMBER(:P5_JOB_ID);
+
+  -- then delete header
+  DELETE FROM bulk_resolution_data
+   WHERE job_id = TO_NUMBER(:P5_JOB_ID);
+
+  COMMIT;
+EXCEPTION
+  WHEN OTHERS THEN
+    ROLLBACK;
+    -- re-raise so APEX shows error (or you can log it)
+    RAISE;
+END;
