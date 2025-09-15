@@ -114,3 +114,49 @@ BEGIN
 
   COMMIT;
 END;
+
+
+
+
+SELECT 
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+    --
+    '<a href="javascript:void(0);" 
+        class="t-Button t-Button--danger t-Button--small cancel-row"
+        data-jobid="'||job_id||'">
+        Cancel
+     </a>' cancel_button
+FROM bulk_resolution_data
+ORDER BY job_id DESC
+
+
+
+
+
+var jobId = $(this.triggeringElement).data("jobid");
+
+// set the hidden item
+apex.item("P5_JOB_ID").setValue(jobId);
+
+// call PL/SQL process via AJAX
+apex.server.process("DELETE_ROW",  // name of the Ajax Callback
+  {
+    x01: jobId   // pass the job id directly
+  },
+  {
+    success: function (pData) {
+      // refresh the IR region
+      apex.region("your_ir_region_static_id").refresh();
+    },
+    error: function (jqXHR, textStatus, errorThrown) {
+      apex.message.alert("Error deleting row: " + errorThrown);
+    }
+  }
+);
+
+
+
