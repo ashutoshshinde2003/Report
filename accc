@@ -137,21 +137,51 @@ ORDER BY job_id DESC
 
 
 
-var jobId = $(this.triggeringElement).data("jobid");
+// ====== True Action JS for .cancel-row click ======
+(function(){
+  var $btn = $(this.triggeringElement);          // clicked button
+  var jobId = $btn.data("jobid");                // read data-jobid attribute
 
-apex.server.process(
-  "DELETE_ROW",   // Ajax Callback process name
-  { x01: jobId }, // pass job_id to PL/SQL
-  {
-    success: function () {
-      apex.region("ir_bulk_jobs").refresh(); // refresh IR region
-      apex.message.showPageSuccess("Deleted JOB_ID " + jobId);
-    },
-    error: function (jqXHR, textStatus, errorThrown) {
-      apex.message.alert("Error deleting row: " + errorThrown);
-    }
+  if (!jobId) {
+    apex.message.alert("Job id not found for this row.");
+    return;
   }
-);
+
+  // confirmation
+  apex.message.confirm("Are you sure you want to cancel JOB_ID " + jobId + " ?",
+    function( ok ) {
+      if (!ok) { return; }
+
+      // disable clicked button to prevent double-click
+      $btn.prop("disabled", true);
+
+      // Optionally show a small spinner near the button (optional)
+      // var spinner = $("<span class='fa fa-spinner fa-spin ml-2'></span>").insertAfter($btn);
+
+      // call Ajax Callback DELETE_ROW, pass jobId in x01
+      apex.server.process(
+        "DELETE_ROW",            // name of Ajax Callback process (create in Step 5)
+        { x01: jobId },          // request payload
+        {
+          success: function(pData) {
+            // refresh IR region (use your IR Static ID)
+            apex.region("ir_bulk_jobs").refresh();
+
+            // show success notification
+            apex.message.showPageSuccess("JOB_ID " + jobId + " deleted.");
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+            apex.message.alert("Error deleting JOB_ID " + jobId + ": " + errorThrown);
+          },
+          complete: function() {
+            // cleanup: re-enable button and remove spinner if used
+            $btn.prop("disabled", false);
+            // spinner.remove();
+          }
+        }
+      ); // apex.server.process
+  }); // confirm
+})();
 
 
 
