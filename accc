@@ -192,3 +192,29 @@ EXCEPTION
               REPLACE(SQLERRM,'"','\"') || '"}');
         owa_util.http_header_close;
 END;
+
+
+
+
+$(".cancel-row").on("click", function(){
+  var jobId = $(this).data("jobid");
+
+  apex.server.process(
+    "DELETE_JOB",                 // name of Ajax Callback
+    {x01: jobId},                 // pass jobId to PL/SQL
+    {
+      dataType: "json",           // expect JSON now
+      success: function(pData){
+        if (pData.status === "OK"){
+          apex.region("ir_bulk_jobs").refresh();
+          apex.message.showPageSuccess("JOB_ID " + jobId + " deleted.");
+        } else {
+          apex.message.alert("Delete failed: " + pData.message);
+        }
+      },
+      error: function(jqXHR, status, err){
+        apex.message.alert("Ajax error: " + err);
+      }
+    }
+  );
+});
