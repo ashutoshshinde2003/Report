@@ -138,3 +138,57 @@ ORDER BY job_id DESC;
 
 
 
+DECLARE
+    l_job_id NUMBER := APEX_APPLICATION.G_X01;
+BEGIN
+    -- Delete from child table first
+    DELETE FROM bulk_resolution_data1
+     WHERE job_id = l_job_id;
+
+    -- Delete from header table
+    DELETE FROM bulk_resolution_data
+     WHERE job_id = l_job_id;
+
+    COMMIT;
+
+    -- Always return valid JSON
+    owa_util.mime_header('application/json', FALSE);
+    htp.p('{"status":"OK"}');
+    owa_util.http_header_close;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        owa_util.mime_header('application/json', FALSE);
+        htp.p('{"status":"ERROR","message":"' ||
+              REPLACE(SQLERRM,'"','\"') || '"}');
+        owa_util.http_header_close;
+END;
+
+
+DECLARE
+    l_job_id NUMBER := APEX_APPLICATION.G_X01;
+BEGIN
+    -- Delete from child table first
+    DELETE FROM bulk_resolution_data1
+     WHERE job_id = l_job_id;
+
+    -- Delete from header table
+    DELETE FROM bulk_resolution_data
+     WHERE job_id = l_job_id;
+
+    COMMIT;
+
+    -- Always return valid JSON
+    owa_util.mime_header('application/json', FALSE);
+    htp.p('{"status":"OK"}');
+    owa_util.http_header_close;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        owa_util.mime_header('application/json', FALSE);
+        htp.p('{"status":"ERROR","message":"' ||
+              REPLACE(SQLERRM,'"','\"') || '"}');
+        owa_util.http_header_close;
+END;
