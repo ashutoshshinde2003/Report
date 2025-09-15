@@ -104,3 +104,29 @@ EXCEPTION
     -- re-raise so APEX shows error (or you can log it)
     RAISE;
 END;
+
+
+'<button type="button" class="t-Button t-Button--danger t-Button--small" 
+ data-jobid="'||job_id||'">Cancel</button>'
+ as cancel_button
+
+
+
+
+
+
+var jobId = $(this.triggeringElement).data('jobid');
+// set page item value
+apex.item('P5_JOB_ID').setValue(jobId);
+// now submit page with request
+apex.submit({request: 'CANCEL_ROW'});
+
+
+
+
+
+
+
+
+
+
