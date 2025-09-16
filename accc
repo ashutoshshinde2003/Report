@@ -173,3 +173,29 @@ apex.server.process(
 
 
 
+
+
+
+
+
+var jobId = $(this.triggeringElement).data('jobid');
+
+// Ask the user first
+if (confirm("Are you sure you want to cancel this row?")) {
+
+  // Set the value in the page item
+  apex.item("P5_JOB_ID").setValue(jobId);
+
+  // Force the value to be saved to session state right away:
+  apex.server.process(
+    "SET_JOB_ID",                  // name of a small process we create below
+    { x01: jobId },                // pass the job id
+    {
+      success: function(){
+        // Now submit the page AFTER session state is updated
+        apex.submit({request: "CANCEL_ROW"});
+      }
+    }
+  );
+
+}
