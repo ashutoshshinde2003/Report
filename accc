@@ -231,3 +231,26 @@ if (confirm("Are you sure you want to cancel this row?")) {
   );
 
 }
+
+
+
+
+SELECT 
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+
+    CASE 
+      WHEN status = 'SUCCESSFUL' THEN
+        -- disabled button
+        '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+      ELSE
+        -- active button
+        '<button class="t-Button t-Button--danger t-Button--small cancel-row" '||
+        'data-jobid="'||job_id||'">Cancel</button>'
+    END AS cancel_button
+
+FROM bulk_resolution_data
+ORDER BY job_id DESC;
