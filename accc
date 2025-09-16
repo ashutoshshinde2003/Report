@@ -199,3 +199,35 @@ if (confirm("Are you sure you want to cancel this row?")) {
   );
 
 }
+
+
+
+
+var jobId = $(this.triggeringElement).data('jobid');
+
+// First confirm before deleting
+if (confirm("Are you sure you want to cancel this row?")) {
+
+  // Set the value in the page item
+  apex.item("P5_JOB_ID").setValue(jobId);
+
+  // Force the value to be saved to session state right away:
+  apex.server.process(
+    "SET_JOB_ID",                  // name of your AJAX process
+    { x01: jobId },                // pass the job id
+    {
+      success: function(){
+        // After session state is updated, submit the page to run the delete process
+        apex.submit({
+          request: "CANCEL_ROW",
+          showWait: true, // optional spinner
+          // After the page submit completes, show message
+          afterSubmit: function(){
+            alert("Row deleted successfully.");
+          }
+        });
+      }
+    }
+  );
+
+}
