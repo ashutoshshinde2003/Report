@@ -254,3 +254,35 @@ SELECT
 
 FROM bulk_resolution_data
 ORDER BY job_id DESC;
+
+
+
+
+
+
+
+<div style="display:flex; gap:20px; align-items:center; justify-content:center;">
+  <div style="
+       background-color:#4CAF50;
+       color:white;
+       padding:20px;
+       border-radius:10px;
+       font-size:20px;
+       min-width:120px;
+       text-align:center;">
+    ✅ Good  
+    <div style="font-size:32px; font-weight:bold;">&P5_GOOD_COUNT.</div>
+  </div>
+
+  <div style="
+       background-color:#F44336;
+       color:white;
+       padding:20px;
+       border-radius:10px;
+       font-size:20px;
+       min-width:120px;
+       text-align:center;">
+    ❌ Bad  
+    <div style="font-size:32px; font-weight:bold;">&P5_BAD_COUNT.</div>
+  </div>
+</div>
