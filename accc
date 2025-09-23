@@ -387,3 +387,33 @@ ORDER BY job_id DESC;
   gap: 8px !important;
   align-items: center !important;
 }
+
+
+
+
+
+
+
+
+
+/* Center the whole search + buttons group */
+.apexir_SEARCH_BAR {
+  display: flex;
+  justify-content: center; /* horizontally center */
+  align-items: center;     /* vertically align */
+  gap: 8px;                /* space between elements */
+  margin: 0 auto;          /* center in its container */
+}
+
+/* Make search field wider */
+.apexir_SEARCH_FIELD {
+  width: 400px !important;
+}
+
+/* Make Go button & Actions dropdown a bit larger */
+.apexir_SEARCH_BUTTON,
+.apexir_ACTIONS_MENU {
+  height: 38px !important;
+  padding: 0 12px !important;
+  font-size: 14px;
+}
