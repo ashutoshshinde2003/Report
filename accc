@@ -286,3 +286,35 @@ ORDER BY job_id DESC;
     <div style="font-size:32px; font-weight:bold;">&P5_BAD_COUNT.</div>
   </div>
 </div>
+
+
+
+
+
+
+<div style="
+  background: linear-gradient(90deg, #0066cc, #00b3b3);
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  font-family: 'Segoe UI', Arial, sans-serif;
+">
+  <h1 style="
+    font-size: 28px;
+    margin: 0;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  ">
+    <i class="fa fa-database" style="margin-right:10px;"></i>
+    PTS BULK RESOLUTION
+  </h1>
+  <p style="
+    font-size: 14px;
+    margin-top: 5px;
+    color: #e0e0e0;
+  ">
+    Manage your bulk file submissions with ease
+  </p>
+</div>
