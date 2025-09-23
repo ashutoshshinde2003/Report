@@ -330,3 +330,23 @@ ORDER BY job_id DESC;
              background-color:#e0f7fa;">
   #STATUS#
 </span>
+
+
+
+
+/* Force the upload region and its container to be full width */
+#my_upload_region,
+#my_upload_region .t-Region,
+#my_upload_region .t-Region-body,
+#my_upload_region .t-Region-content {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block !important;
+}
+
+/* Optional: make the input and buttons larger */
+#my_upload_region input[type="file"],
+#my_upload_region .t-Button {
+  font-size: 1.1rem;
+  padding: 0.6rem 1rem;
+}
