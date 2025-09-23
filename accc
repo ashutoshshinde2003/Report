@@ -350,3 +350,40 @@ ORDER BY job_id DESC;
   font-size: 1.1rem;
   padding: 0.6rem 1rem;
 }
+
+
+
+
+
+/* Make IR search bar wider */
+.a-IRR-search-field {
+  width: 400px !important;   /* Adjust width here */
+  max-width: 600px !important;
+  height: 38px !important;   /* taller input */
+  font-size: 14px !important;
+}
+
+/* Make Go button larger and styled */
+.a-IRR-button.a-Button.a-IRR-button--go {
+  height: 38px !important;
+  font-size: 14px !important;
+  padding: 0 20px !important;
+  background-color: #007bff !important; /* blue */
+  color: #fff !important;
+  border-radius: 5px !important;
+}
+
+/* Make Actions dropdown wider */
+.a-IRR-actions {
+  width: 180px !important;  /* Adjust width */
+  max-width: 250px !important;
+  height: 38px !important;
+  font-size: 14px !important;
+}
+
+/* Arrange search + go + actions nicely */
+.a-IRR-search {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
