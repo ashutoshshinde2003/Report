@@ -417,3 +417,26 @@ ORDER BY job_id DESC;
   padding: 0 12px !important;
   font-size: 14px;
 }
+
+
+
+
+
+SELECT 
+    br1.pts_res_group_id,
+    pts.mer_num,
+    pts.us_currency_amt,
+    pts.trn_dt,
+    pts.susp_reas_cd,
+    pts.work_of_dt,
+    pts.case_status_id,
+    CASE 
+        WHEN br1.pts_res_group_id IS NULL 
+             OR pts.pts_res_group_id IS NULL THEN 'Invalid'
+        WHEN pts.case_status_id = 20 THEN 'Already Closed'
+        ELSE 'Scheduled'
+    END AS status
+FROM apex_mod.bulk_resolution_data br1
+LEFT JOIN eresuser_owner.pts_case pts
+       ON br1.pts_res_group_id = pts.pts_res_group_id
+WHERE br1.job_id = :JOB_ID;
