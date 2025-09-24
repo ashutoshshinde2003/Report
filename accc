@@ -525,3 +525,40 @@ SELECT
 
 FROM bulk_resolution_data
 ORDER BY job_id DESC;
+
+
+
+
+
+SELECT 
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+
+    -- Job ID link conditional on STATUS
+    CASE
+        WHEN status = 'Scheduled' THEN
+            '<a href="' || APEX_PAGE.GET_URL(
+                p_page => 10,               -- target page number
+                p_items => 'P10_JOB_ID',    -- page item on target page
+                p_values => job_id
+            ) || '">' || job_id || '</a>'
+        ELSE
+            job_id
+    END AS job_id_link,
+
+    -- Cancel button logic
+    CASE 
+        WHEN status IN ('SUCCESSFUL', 'CANCELLED', 'FAILED') THEN
+            -- disabled button
+            '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+        ELSE
+            -- active button
+            '<button class="t-Button t-Button--danger t-Button--small cancel-row" '||
+            'data-jobid="'||job_id||'">Cancel</button>'
+    END AS cancel_button
+
+FROM bulk_resolution_data
+ORDER BY job_id DESC;
