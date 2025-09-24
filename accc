@@ -463,3 +463,28 @@ FROM apex_mod.bulk_resolution_data br1
 LEFT JOIN eresuser_owner.pts_case pts
        ON br1.pts_res_group_id = pts.pts_res_group_id
 WHERE br1.job_id = :JOB_ID;
+
+
+
+
+
+
+
+SELECT
+    br1.pts_res_group_id,
+    pts.mer_num,
+    pts.us_currency_amt,
+    pts.trn_dt,
+    pts.susp_reas_cd,
+    pts.work_of_dt,
+    -- Removed the original problematic CASE statement for better clarity
+    CASE
+        WHEN pts.pts_res_group_id IS NULL THEN 'Invalid'  -- Check for no matching record in pts
+        ELSE decode(pts.case_status_id, 20, 'Already Closed', 'Scheduled')
+    END as status
+FROM
+    apex_mod.bulk_resolution_data1 br1
+LEFT JOIN
+    eresuser_owner.pts_case pts ON br1.pts_res_group_id = pts.pts_res_group_id
+WHERE
+    br1.job_id = :JOB_ID;
