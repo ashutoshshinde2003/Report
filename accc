@@ -673,3 +673,37 @@ ORDER BY job_id DESC;
 
 
 
+
+
+
+SELECT
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+
+    -- Conditional Job ID link, safely escaped
+    CASE
+        WHEN status = 'Scheduled' THEN
+            '<a href="f?p=' || :APP_ID || ':10:' || :SESSION || ':NO::P10_JOB_ID:' || 
+            APEX_ESCAPE.HTML_ATTRIBUTE(job_id) || '">' || 
+            APEX_ESCAPE.HTML(job_id) || '</a>'
+        ELSE
+            APEX_ESCAPE.HTML(job_id)
+    END AS job_id_link,
+
+    -- Cancel button logic, safely escaped
+    CASE
+        WHEN status IN ('SUCCESSFUL', 'CANCELLED', 'FAILED') THEN
+            '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+        ELSE
+            '<button class="t-Button t-Button--danger t-Button--small cancel-row" ' ||
+            'data-jobid="' || APEX_ESCAPE.HTML_ATTRIBUTE(job_id) || '">Cancel</button>'
+    END AS cancel_button
+
+FROM bulk_resolution_data
+ORDER BY job_id DESC;
+
+
+
