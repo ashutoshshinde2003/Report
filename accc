@@ -707,3 +707,36 @@ ORDER BY job_id DESC;
 
 
 
+
+
+
+
+SELECT
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+
+    -- Cancel button logic
+    CASE
+        WHEN status IN ('SUCCESSFUL', 'CANCELLED', 'FAILED') THEN
+            '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+        ELSE
+            '<button class="t-Button t-Button--danger t-Button--small cancel-row" ' ||
+            'data-jobid="' || job_id || '">Cancel</button>'
+    END AS cancel_button
+
+FROM bulk_resolution_data
+ORDER BY job_id DESC;
+
+
+
+
+
+#if#STATUS#Scheduled##
+    <a href="f?p=&APP_ID.:9:&SESSION.:NO::P9_JOB_ID_FETCHING:#JOB_ID#">#JOB_ID#</a>
+#else##
+    #JOB_ID#
+#end##
+
