@@ -906,3 +906,25 @@ EXCEPTION
 
         ROLLBACK;
 END;
+
+
+
+
+
+BEGIN
+    DBMS_SCHEDULER.create_job (
+        job_name        => 'BULK_RESOLUTION_JOB',
+        job_type        => 'PLSQL_BLOCK',
+        job_action      => q'[
+            BEGIN
+                -- Call your existing procedure here
+                my_bulk_resolution_proc;
+            END;
+        ]',
+        start_date      => SYSTIMESTAMP,
+        repeat_interval => 'FREQ=DAILY; BYHOUR=2; BYMINUTE=0; BYSECOND=0', -- every day 2AM
+        enabled         => TRUE,
+        auto_drop       => FALSE
+    );
+END;
+/
