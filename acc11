@@ -265,3 +265,39 @@ LEFT JOIN eresuser_owner.pts_case pts
 WHERE br1.job_id = :JOB_ID
 GROUP BY br1.pts_res_group_id
 ORDER BY MAX(pts.work_of_dt) DESC;
+
+
+
+
+
+
+
+
+DECLARE
+    l_data apex_t_varchar2;   -- temporary array to hold parsed rows
+BEGIN
+    -- Use APEX_DATA_PARSER to read Excel
+    FOR rec IN (
+        SELECT *
+        FROM TABLE(
+            apex_data_parser.parse(
+                p_file       => :P1_FILE,
+                p_sheet_name => NULL,           -- first sheet
+                p_max_rows   => NULL
+            )
+        )
+    ) LOOP
+        -- rec.column1 assumed to be pts_res_group_id
+        IF REGEXP_LIKE(rec.column1, '^[0-9]+$') THEN
+            -- numeric -> insert into main table
+            INSERT INTO apex_mod.bulk_resolution_data1 (pts_res_group_id, job_id)
+            VALUES (rec.column1, :JOB_ID);
+        ELSE
+            -- junk -> insert into separate table
+            INSERT INTO apex_mod.bulk_resolution_data2 (pts_res_group_id, job_id)
+            VALUES (rec.column1, :JOB_ID);
+        END IF;
+    END LOOP;
+
+    COMMIT;
+END;
