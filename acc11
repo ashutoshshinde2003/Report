@@ -143,5 +143,38 @@ FROM apex_mod.bulk_resolution_data1 br1
 JOIN eresuser_owner.pts_case pts
   ON br1.pts_res_group_id = pts.pts_res_group_id
 WHERE br1.job_id = :JOB_ID
+  AND REGEXP_LIKE(br1.pts_res_group_id, '^[0-9]+$')
+GROUP BY br1.pts_res_group_id
+ORDER BY MAX(pts.work_of_dt) DESC;
+
+
+
+
+
+
+SELECT 
+  br1.pts_res_group_id,
+  MAX(pts.mer_num) AS mer_num,
+  SUM(pts.us_currency_amt) AS us_currency_amt,
+  MAX(pts.trn_dt) AS trn_dt,
+  MAX(pts.susp_reas_cd) AS susp_reas_cd,
+  MAX(pts.work_of_dt) AS work_of_dt,
+  MAX(pts.case_status_id) AS case_status_id,
+  /* 👇 status column extended */
+  CASE
+    WHEN br1.pts_res_group_id IS NULL 
+         OR NOT REGEXP_LIKE(br1.pts_res_group_id,'^[0-9]+$')
+         OR pts.pts_res_group_id IS NULL
+    THEN 'Invalid'
+    WHEN MAX(pts.case_status_id) = 20 THEN 'Already Closed'
+    ELSE 'Scheduled'
+  END AS status
+FROM apex_mod.bulk_resolution_data1 br1
+LEFT JOIN eresuser_owner.pts_case pts
+  ON br1.pts_res_group_id = pts.pts_res_group_id
+WHERE br1.job_id = :JOB_ID
+  AND (br1.pts_res_group_id IS NULL 
+       OR NOT REGEXP_LIKE(br1.pts_res_group_id, '^[0-9]+$')
+       OR pts.pts_res_group_id IS NULL)
 GROUP BY br1.pts_res_group_id
 ORDER BY MAX(pts.work_of_dt) DESC;
