@@ -1,10 +1,11 @@
 DECLARE
-    l_blob      BLOB;
-    l_file_name VARCHAR2(255);
-    l_err_msg   VARCHAR2(4000);
-    l_job_id    NUMBER;
-    l_success   BOOLEAN := TRUE;
-    l_status    VARCHAR2(20);
+    l_blob        BLOB;
+    l_file_name   VARCHAR2(255);
+    l_err_msg     VARCHAR2(4000);
+    l_job_id      NUMBER;
+    l_success     BOOLEAN := TRUE;
+    l_status      VARCHAR2(20);
+    l_rows_loaded NUMBER := 0;  -- count inserted rows
 BEGIN
     -- Get latest uploaded file
     SELECT blob_content, filename
@@ -16,10 +17,10 @@ BEGIN
         ORDER BY created_on DESC
     )
     WHERE ROWNUM = 1;
- 
+
     -- Generate one JOB_ID for this batch
     SELECT bulk_resolution_seq.NEXTVAL INTO l_job_id FROM dual;
- 
+
     -- Parse Excel file (one column only)
     FOR rec IN (
         SELECT col001 AS pts_res_group_id
@@ -27,13 +28,13 @@ BEGIN
             apex_data_parser.parse(
                 p_content   => l_blob,
                 p_file_name => l_file_name,
-                p_skip_rows => 1
+                p_skip_rows => 1  -- skip header
             )
         )
     )
     LOOP
         BEGIN
-            -- Insert even if value is NULL
+            -- Insert regardless of value
             INSERT INTO bulk_resolution_data1 (
                 pts_res_group_id,
                 job_id
@@ -41,7 +42,9 @@ BEGIN
                 rec.pts_res_group_id,
                 l_job_id
             );
- 
+
+            l_rows_loaded := l_rows_loaded + 1;  -- increment counter
+
         EXCEPTION
             WHEN DUP_VAL_ON_INDEX THEN
                 l_success := FALSE;
@@ -56,11 +59,11 @@ BEGIN
                 );
         END;
     END LOOP;
- 
+
     -- Cleanup temp file
     DELETE FROM apex_application_temp_files
     WHERE filename = l_file_name;
- 
+
     -- Decide header status
     IF l_success THEN
         l_status := 'SCHEDULED';
@@ -73,39 +76,42 @@ BEGIN
         :P5_NEW_2 := 'N';
         :USER_PREVIEW := 'N';
     END IF;
- 
+
     -- Insert header log record
     INSERT INTO bulk_resolution_data (
         job_id, submission, date_added, status, user_added, FLAGB1, JOB_STATUS
     ) VALUES (
         l_job_id,
-        100,
+        l_rows_loaded, -- put the number of rows loaded in SUBMISSION
         SYSDATE,
         l_status,
         :APP_USER,
         'N',
         'PENDING'
     );
- 
+
     COMMIT;
- 
+
+    -- Feedback in APEX
+    APEX_DEBUG.MESSAGE('Rows loaded: '||l_rows_loaded);
+    :P5_ROWS_LOADED := l_rows_loaded;  -- optional page item to show count
+
 EXCEPTION
     WHEN OTHERS THEN
         l_err_msg := SQLERRM;
         DBMS_OUTPUT.PUT_LINE('Fatal error: '||l_err_msg);
- 
-        -- Still record header failure
+
         INSERT INTO bulk_resolution_data (
             job_id, submission, date_added, status, user_added, FLAGB1, JOB_STATUS
         ) VALUES (
             NVL(l_job_id, bulk_resolution_seq.NEXTVAL),
-            100,
+            0,
             SYSDATE,
             'FAILED',
             :APP_USER,
             'N',
             'PENDING'
         );
- 
+
         ROLLBACK;
 END;
