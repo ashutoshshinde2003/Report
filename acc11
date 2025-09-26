@@ -33,7 +33,7 @@ BEGIN
     )
     LOOP
         BEGIN
-            -- Insert even if value is NULL or alphanumeric
+            -- Insert directly even if NULL or alphanumeric
             INSERT INTO bulk_resolution_data1 (
                 pts_res_group_id,
                 job_id
