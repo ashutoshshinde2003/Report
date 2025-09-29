@@ -1,0 +1,13 @@
+SELECT COUNT(*)
+FROM (
+  SELECT
+    br1.pts_res_group_id,
+    DECODE(pts.case_status_id, 20, 'Bad', 'Good') AS status
+  FROM apex_mod.bulk_resolution_data1 br1, eresuser_owner.pts_case pts
+  WHERE br1.pts_res_group_id = pts.pts_res_group_id
+    AND br1.job_id = :JOB_ID
+  GROUP BY
+    br1.pts_res_group_id,
+    DECODE(pts.case_status_id, 20, 'Bad', 'Good')
+)
+WHERE status = 'Good';
