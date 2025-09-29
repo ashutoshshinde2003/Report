@@ -38,28 +38,20 @@ WHERE status = 'Bad'
 
 SELECT 
     job_id,
-    submission,
-    date_added,
-    status,
-    user_added,
+    created_by,
+    created_dt,
+    job_status,
 
     CASE 
-      WHEN status = 'SUCCESSFUL' THEN
-        -- disabled button
+      WHEN job_status IN ('SCHEDULED','SUCCESSFUL','CANCELLED','FAILED') 
+           AND job_status <> 'PENDING' THEN
+        -- disabled button for completed/invalid states
         '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
-        WHEN status = 'CANCELLED' THEN
-        -- disabled button
-        '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
-        WHEN status = 'FAILED' THEN
-        -- disabled button
-        '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
-
-
       ELSE
-        -- active button
+        -- active cancel button
         '<button class="t-Button t-Button--danger t-Button--small cancel-row" '||
         'data-jobid="'||job_id||'">Cancel</button>'
     END AS cancel_button
 
-FROM bulk_resolution_data
+FROM apex_mod.eres_bulk_res_upload_smry
 ORDER BY job_id DESC;
