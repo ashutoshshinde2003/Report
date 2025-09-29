@@ -28,3 +28,38 @@ FROM (
   GROUP BY br1.pts_res_group_id, pts.case_status_id
 )
 WHERE status = 'Bad'
+
+
+
+
+
+
+
+
+SELECT 
+    job_id,
+    submission,
+    date_added,
+    status,
+    user_added,
+
+    CASE 
+      WHEN status = 'SUCCESSFUL' THEN
+        -- disabled button
+        '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+        WHEN status = 'CANCELLED' THEN
+        -- disabled button
+        '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+        WHEN status = 'FAILED' THEN
+        -- disabled button
+        '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+
+
+      ELSE
+        -- active button
+        '<button class="t-Button t-Button--danger t-Button--small cancel-row" '||
+        'data-jobid="'||job_id||'">Cancel</button>'
+    END AS cancel_button
+
+FROM bulk_resolution_data
+ORDER BY job_id DESC;
