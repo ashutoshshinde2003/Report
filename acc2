@@ -40,3 +40,74 @@ BEGIN
                       END
    WHERE job_id = :JOB_ID;
 END;
+
+
+
+
+
+
+BEGIN
+  UPDATE apex_mod.eres_bulk_res_upload_detail d
+     SET row_status =
+           CASE
+             /* digits only AND exists in PTS_CASE => VALID */
+             WHEN REGEXP_LIKE(d.pts_res_group_id, '^\d+$')
+                  AND EXISTS (
+                        SELECT 1
+                          FROM eresuser_owner.pts_case p
+                         WHERE p.pts_res_group_id = TO_NUMBER(d.pts_res_group_id)
+                       )
+             THEN 'VALID'
+             /* everything else (non-numeric OR numeric but no match) => INVALID */
+             ELSE 'INVALID'
+           END
+   WHERE d.job_id = :JOB_ID;
+END;
+
+
+
+
+
+
+
+SELECT 
+    br1.pts_res_group_id,
+    MAX(pts.mer_num)        AS mer_num,
+    SUM(pts.us_currency_amt) AS us_currency_amt,
+    MAX(pts.trn_dt)         AS trn_dt,
+    MAX(pts.susp_reas_cd)   AS susp_reas_cd,
+    MAX(pts.work_of_dt)     AS work_of_dt,
+    MAX(pts.case_status_id) AS case_status_id,
+    DECODE(MAX(pts.case_status_id), 20, 'Already Closed', 'Scheduled') AS status
+FROM apex_mod.eres_bulk_res_upload_detail br1
+JOIN eresuser_owner.pts_case pts
+  ON TO_NUMBER(br1.pts_res_group_id) = pts.pts_res_group_id
+WHERE br1.job_id = :JOB_ID
+  AND br1.row_status = 'VALID'
+GROUP BY br1.pts_res_group_id
+ORDER BY MAX(pts.work_of_dt) DESC;
+
+
+
+
+
+
+SELECT
+  br1.seq_no,
+  br1.pts_res_group_id,
+  br1.row_status,
+  CASE
+    WHEN NOT REGEXP_LIKE(br1.pts_res_group_id, '^\d+$')
+      THEN 'Non-numeric / blank'
+    WHEN REGEXP_LIKE(br1.pts_res_group_id, '^\d+$')
+         AND NOT EXISTS (
+               SELECT 1
+                 FROM eresuser_owner.pts_case p
+                WHERE p.pts_res_group_id = TO_NUMBER(br1.pts_res_group_id)
+             )
+      THEN 'No match in PTS_CASE'
+  END AS invalid_reason
+FROM apex_mod.eres_bulk_res_upload_detail br1
+WHERE br1.job_id = :JOB_ID
+  AND br1.row_status = 'INVALID'
+ORDER BY br1.seq_no;
