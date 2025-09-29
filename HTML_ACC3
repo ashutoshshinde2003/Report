@@ -11,3 +11,20 @@ FROM (
   GROUP BY br1.pts_res_group_id, pts.case_status_id
 )
 WHERE status = 'Good'
+
+
+
+
+SELECT COUNT(*)
+FROM (
+  SELECT 
+      br1.pts_res_group_id,
+      DECODE(pts.case_status_id, 20, 'Bad', 'Good') AS status
+  FROM apex_mod.eres_bulk_res_upload_detail br1
+  JOIN eresuser_owner.pts_case pts
+    ON TO_NUMBER(br1.pts_res_group_id) = pts.pts_res_group_id
+  WHERE br1.job_id = :JOB_ID
+    AND br1.row_status = 'VALID'
+  GROUP BY br1.pts_res_group_id, pts.case_status_id
+)
+WHERE status = 'Bad'
