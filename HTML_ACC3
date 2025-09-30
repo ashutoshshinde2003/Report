@@ -207,3 +207,106 @@ ORDER BY job_id DESC;
 
 
 
+
+
+/* ============================= */
+/* VALID RECORDS IR Styles */
+/* ============================= */
+
+/* Header bar */
+#VALID_RECORDS .t-Region-header {
+  background-color: #28a745 !important; /* green header */
+  color: #fff !important;
+}
+#VALID_RECORDS .t-Region-title {
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+/* Toolbar */
+.valid-toolbar .a-IRR-search-field {
+  width: 480px !important;
+  height: 38px !important;
+  font-size: 20px !important;
+}
+.valid-toolbar .a-IRR-button--go {
+  height: 38px !important;
+  font-size: 18px !important;
+  padding: 0 20px !important;
+  background-color: #007bff !important; /* blue button */
+  color: #fff !important;
+  border-radius: 5px !important;
+}
+.valid-toolbar .a-IRR-actions,
+.valid-toolbar select.a-IRR-selectList {
+  width: 160px !important;
+  height: 38px !important;
+  font-size: 18px !important;
+}
+.valid-toolbar .a-IRR-search {
+  display: flex !important;
+  gap: 16px !important;
+  align-items: center !important;
+}
+
+/* Table rows */
+.valid-report .a-IRR-table tbody tr td {
+  background-color: #e8f7ee !important; /* light green */
+}
+.valid-report .a-IRR-table tbody tr:hover td {
+  background-color: #c7f0d6 !important; /* darker green on hover */
+}
+
+
+/* ================================ */
+/* INVALID RECORDS IR Styles */
+/* ================================ */
+
+/* Header bar */
+#INVALID_RECORDS .t-Region-header {
+  background-color: #dc3545 !important; /* red header */
+  color: #fff !important;
+}
+#INVALID_RECORDS .t-Region-title {
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+/* Toolbar */
+.invalid-toolbar .a-IRR-search-field {
+  width: 300px !important;
+  height: 32px !important;
+  font-size: 16px !important;
+}
+.invalid-toolbar .a-IRR-button--go {
+  height: 32px !important;
+  font-size: 14px !important;
+  padding: 0 16px !important;
+  background-color: #dc3545 !important; /* red button */
+  color: #fff !important;
+  border-radius: 4px !important;
+}
+.invalid-toolbar .a-IRR-actions,
+.invalid-toolbar select.a-IRR-selectList {
+  width: 120px !important;
+  height: 32px !important;
+  font-size: 14px !important;
+}
+.invalid-toolbar .a-IRR-search {
+  display: flex !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+/* Table rows */
+.invalid-report .a-IRR-table tbody tr td {
+  background-color: #fdeaea !important; /* light red */
+}
+.invalid-report .a-IRR-table tbody tr:hover td {
+  background-color: #f9c7c7 !important; /* darker red on hover */
+}
+
+
+
+
+
