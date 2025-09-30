@@ -93,7 +93,116 @@ ORDER BY job_id DESC;
 
 
 
+/* ============================= */
+/* VALID RECORDS (Static ID: VALID_RECORDS) */
+/* ============================= */
 
+/* Header bar (region header) */
+#VALID_RECORDS .t-Region-header {
+  background-color: #28a745 !important; /* green */
+  color: #fff !important;
+}
+#VALID_RECORDS .t-Region-title { color: #fff !important; }
+
+/* Search field (cover old/new class names) */
+#VALID_RECORDS input.a-IRR-search-field,
+#VALID_RECORDS input.a-IRR-searchField {
+  width: 480px !important;
+  height: 38px !important;
+  font-size: 20px !important;
+}
+
+/* Go button */
+#VALID_RECORDS .a-IRR-button.a-Button.a-IRR-button--go,
+#VALID_RECORDS .a-Button.a-IRR-button--go {
+  height: 38px !important;
+  font-size: 18px !important; /* no space in '18px' */
+  padding: 0 20px !important;
+  background-color: #007bff !important;
+  color: #fff !important;
+  border-radius: 5px !important;
+}
+
+/* Actions dropdown */
+#VALID_RECORDS .a-IRR-actions,
+#VALID_RECORDS .a-Toolbar-selectList,
+#VALID_RECORDS select.a-IRR-selectList {
+  width: 160px !important;
+  height: 38px !important;
+  font-size: 18px !important;
+}
+
+/* Align search group */
+#VALID_RECORDS .a-IRR-search,
+#VALID_RECORDS .a-Toolbar-group--search {
+  display: flex !important;
+  gap: 16px !important;
+  align-items: center !important;
+}
+
+/* Row coloring */
+#VALID_RECORDS .a-IRR-table tbody tr td {
+  background-color: #e8f7ee !important;  /* light green */
+}
+#VALID_RECORDS .a-IRR-table tbody tr:hover td {
+  background-color: #c7f0d6 !important;
+}
+
+
+/* ============================= */
+/* INVALID RECORDS (Static ID: INVALID_RECORDS) */
+/* ============================= */
+
+/* Header bar */
+#INVALID_RECORDS .t-Region-header {
+  background-color: #dc3545 !important; /* red */
+  color: #fff !important;
+}
+#INVALID_RECORDS .t-Region-title { color: #fff !important; }
+
+/* Search field */
+#INVALID_RECORDS input.a-IRR-search-field,
+#INVALID_RECORDS input.a-IRR-searchField {
+  width: 300px !important;
+  height: 32px !important;
+  font-size: 16px !important;
+}
+
+/* Go button */
+#INVALID_RECORDS .a-IRR-button.a-Button.a-IRR-button--go,
+#INVALID_RECORDS .a-Button.a-IRR-button--go {
+  height: 32px !important;
+  font-size: 14px !important;
+  padding: 0 16px !important;
+  background-color: #dc3545 !important;
+  color: #fff !important;
+  border-radius: 4px !important;
+}
+
+/* Actions dropdown */
+#INVALID_RECORDS .a-IRR-actions,
+#INVALID_RECORDS .a-Toolbar-selectList,
+#INVALID_RECORDS select.a-IRR-selectList {
+  width: 120px !important;
+  height: 32px !important;
+  font-size: 14px !important;
+}
+
+/* Align search group */
+#INVALID_RECORDS .a-IRR-search,
+#INVALID_RECORDS .a-Toolbar-group--search {
+  display: flex !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+/* Row coloring */
+#INVALID_RECORDS .a-IRR-table tbody tr td {
+  background-color: #fdeaea !important;  /* light red */
+}
+#INVALID_RECORDS .a-IRR-table tbody tr:hover td {
+  background-color: #f9c7c7 !important;
+}
 
 
 
