@@ -97,66 +97,100 @@ ORDER BY job_id DESC;
 
 
 
-
 /* ============================= */
-/* Styles for VALID IR (IR_VALID) */
+/* Styles for VALID RECORDS IR */
 /* ============================= */
-#IR_VALID .a-IRR-search-field {
-  width: 480px !important;        /* wider search box */
-  height: 38px !important;        /* taller */
-  font-size: 20px !important;     /* bigger text */
+#VALID_RECORDS .a-IRR-search-field {
+  width: 480px !important;
+  height: 38px !important;
+  font-size: 20px !important;
 }
 
-#IR_VALID .a-IRR-button.a-Button.a-IRR-button--go {
+#VALID_RECORDS .a-IRR-button.a-Button.a-IRR-button--go {
   height: 38px !important;
   font-size: 18px !important;
   padding: 0 20px !important;
-  background-color: #007bff !important; /* blue */
+  background-color: #007bff !important; /* blue button */
   color: #fff !important;
   border-radius: 5px !important;
 }
 
-#IR_VALID .a-IRR-actions {
+#VALID_RECORDS .a-IRR-actions {
   width: 160px !important;
   height: 38px !important;
   font-size: 18px !important;
 }
 
-/* Align search + Go + Actions nicely */
-#IR_VALID .a-IRR-search {
+#VALID_RECORDS .a-IRR-search {
   display: flex !important;
   gap: 16px !important;
   align-items: center !important;
 }
 
+/* Header styling for VALID RECORDS */
+#VALID_RECORDS .a-IRR-header {
+  background-color: #28a745 !important; /* green header */
+  color: #fff !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  padding: 6px !important;
+}
+
+/* Row coloring for VALID RECORDS */
+#VALID_RECORDS .a-IRR-table tr td {
+  background-color: #e8f7ee !important; /* light green background */
+}
+#VALID_RECORDS .a-IRR-table tr:hover td {
+  background-color: #c7f0d6 !important; /* darker green on hover */
+}
+
 
 /* ================================ */
-/* Styles for INVALID IR (IR_INVALID) */
+/* Styles for INVALID RECORDS IR */
 /* ================================ */
-#IR_INVALID .a-IRR-search-field {
-  width: 300px !important;        /* narrower search box */
+#INVALID_RECORDS .a-IRR-search-field {
+  width: 300px !important;
   height: 32px !important;
   font-size: 16px !important;
 }
 
-#IR_INVALID .a-IRR-button.a-Button.a-IRR-button--go {
+#INVALID_RECORDS .a-IRR-button.a-Button.a-IRR-button--go {
   height: 32px !important;
   font-size: 14px !important;
   padding: 0 16px !important;
-  background-color: #dc3545 !important; /* red */
+  background-color: #dc3545 !important; /* red button */
   color: #fff !important;
   border-radius: 4px !important;
 }
 
-#IR_INVALID .a-IRR-actions {
+#INVALID_RECORDS .a-IRR-actions {
   width: 120px !important;
   height: 32px !important;
   font-size: 14px !important;
 }
 
-/* Align search + Go + Actions nicely */
-#IR_INVALID .a-IRR-search {
+#INVALID_RECORDS .a-IRR-search {
   display: flex !important;
   gap: 12px !important;
   align-items: center !important;
 }
+
+/* Header styling for INVALID RECORDS */
+#INVALID_RECORDS .a-IRR-header {
+  background-color: #dc3545 !important; /* red header */
+  color: #fff !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  padding: 6px !important;
+}
+
+/* Row coloring for INVALID RECORDS */
+#INVALID_RECORDS .a-IRR-table tr td {
+  background-color: #fdeaea !important; /* light red background */
+}
+#INVALID_RECORDS .a-IRR-table tr:hover td {
+  background-color: #f9c7c7 !important; /* darker red on hover */
+}
+
