@@ -98,36 +98,65 @@ ORDER BY job_id DESC;
 
 
 
-/* Make IR search bar wider */
-.a-IRR-search-field {
-  width: 480px !important;   /* Adjust width here */
-  max-width: 1000px !important;
-  height: 38px !important;   /* taller input */
-  font-size: 28px !important;
+/* ============================= */
+/* Styles for VALID IR (IR_VALID) */
+/* ============================= */
+#IR_VALID .a-IRR-search-field {
+  width: 480px !important;        /* wider search box */
+  height: 38px !important;        /* taller */
+  font-size: 20px !important;     /* bigger text */
 }
 
-/* Make Go button larger and styled */
-.a-IRR-button.a-Button.a-IRR-button--go {
+#IR_VALID .a-IRR-button.a-Button.a-IRR-button--go {
   height: 38px !important;
-  font-size: 28 px !important;
+  font-size: 18px !important;
   padding: 0 20px !important;
   background-color: #007bff !important; /* blue */
   color: #fff !important;
   border-radius: 5px !important;
 }
 
-/* Make Actions dropdown wider */
-.a-IRR-actions {
-  width: 140px !important;  /* Adjust width */
-  max-width: 200px !important;
+#IR_VALID .a-IRR-actions {
+  width: 160px !important;
   height: 38px !important;
-  font-size: 28px !important;
-  padding:  2.5px 40px;
+  font-size: 18px !important;
 }
 
-/* Arrange search + go + actions nicely */
-.a-IRR-search {
+/* Align search + Go + Actions nicely */
+#IR_VALID .a-IRR-search {
   display: flex !important;
   gap: 16px !important;
+  align-items: center !important;
+}
+
+
+/* ================================ */
+/* Styles for INVALID IR (IR_INVALID) */
+/* ================================ */
+#IR_INVALID .a-IRR-search-field {
+  width: 300px !important;        /* narrower search box */
+  height: 32px !important;
+  font-size: 16px !important;
+}
+
+#IR_INVALID .a-IRR-button.a-Button.a-IRR-button--go {
+  height: 32px !important;
+  font-size: 14px !important;
+  padding: 0 16px !important;
+  background-color: #dc3545 !important; /* red */
+  color: #fff !important;
+  border-radius: 4px !important;
+}
+
+#IR_INVALID .a-IRR-actions {
+  width: 120px !important;
+  height: 32px !important;
+  font-size: 14px !important;
+}
+
+/* Align search + Go + Actions nicely */
+#IR_INVALID .a-IRR-search {
+  display: flex !important;
+  gap: 12px !important;
   align-items: center !important;
 }
