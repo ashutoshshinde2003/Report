@@ -93,3 +93,117 @@ ORDER BY job_id DESC;
 
 
 
+
+/* ============================= */
+/* VALID RECORDS (Static ID: VALID_RECORDS) */
+/* ============================= */
+
+/* Region header */
+#VALID_RECORDS .t-Region-header { background-color:#28a745 !important; color:#fff !important; }
+#VALID_RECORDS .t-Region-title  { color:#fff !important; }
+
+/* Toolbar (search + go + actions) lives here */
+#VALID_RECORDS_toolbar .a-IRR-search-field,
+#VALID_RECORDS_toolbar input.a-IRR-searchField {
+  width: 480px !important;
+  height: 38px !important;
+  font-size: 20px !important;
+}
+
+#VALID_RECORDS_toolbar .a-IRR-button.a-Button.a-IRR-button--go,
+#VALID_RECORDS_toolbar .a-Button.a-IRR-button--go {
+  height: 38px !important;
+  font-size: 18px !important;  /* no space: 18px */
+  padding: 0 20px !important;
+  background-color: #007bff !important;
+  color:#fff !important;
+  border-radius:5px !important;
+}
+
+#VALID_RECORDS_toolbar .a-IRR-actions,
+#VALID_RECORDS_toolbar .a-Toolbar-selectList,
+#VALID_RECORDS_toolbar select.a-IRR-selectList {
+  width: 160px !important;
+  height: 38px !important;
+  font-size: 18px !important;
+}
+
+/* Arrange toolbar neatly */
+#VALID_RECORDS_toolbar .a-IRR-search,
+#VALID_RECORDS_toolbar .a-Toolbar-group--search {
+  display:flex !important;
+  gap:16px !important;
+  align-items:center !important;
+}
+
+/* Table body lives under _report */
+#VALID_RECORDS_report .a-IRR-table tbody tr td { background:#e8f7ee !important; }
+#VALID_RECORDS_report .a-IRR-table tbody tr:hover td { background:#c7f0d6 !important; }
+
+
+/* ================================ */
+/* INVALID RECORDS (Static ID: INVALID_RECORDS) */
+/* ================================ */
+
+/* Region header */
+#INVALID_RECORDS .t-Region-header { background-color:#dc3545 !important; color:#fff !important; }
+#INVALID_RECORDS .t-Region-title  { color:#fff !important; }
+
+/* Toolbar */
+#INVALID_RECORDS_toolbar .a-IRR-search-field,
+#INVALID_RECORDS_toolbar input.a-IRR-searchField {
+  width: 300px !important;
+  height: 32px !important;
+  font-size: 16px !important;
+}
+
+#INVALID_RECORDS_toolbar .a-IRR-button.a-Button.a-IRR-button--go,
+#INVALID_RECORDS_toolbar .a-Button.a-IRR-button--go {
+  height: 32px !important;
+  font-size: 14px !important;
+  padding: 0 16px !important;
+  background-color:#dc3545 !important;
+  color:#fff !important;
+  border-radius:4px !important;
+}
+
+#INVALID_RECORDS_toolbar .a-IRR-actions,
+#INVALID_RECORDS_toolbar .a-Toolbar-selectList,
+#INVALID_RECORDS_toolbar select.a-IRR-selectList {
+  width: 120px !important;
+  height: 32px !important;
+  font-size: 14px !important;
+}
+
+/* Arrange toolbar neatly */
+#INVALID_RECORDS_toolbar .a-IRR-search,
+#INVALID_RECORDS_toolbar .a-Toolbar-group--search {
+  display:flex !important;
+  gap:12px !important;
+  align-items:center !important;
+}
+
+/* Table body */
+#INVALID_RECORDS_report .a-IRR-table tbody tr td { background:#fdeaea !important; }
+#INVALID_RECORDS_report .a-IRR-table tbody tr:hover td { background:#f9c7c7 !important; }
+
+
+
+
+
+(function($){
+  function tagIR(staticId, tag){
+    // Add marker classes to toolbar/report if they exist
+    $('#' + staticId + '_toolbar').addClass(tag + '-toolbar');
+    $('#' + staticId + '_report').addClass(tag + '-report');
+  }
+  $(function(){
+    tagIR('VALID_RECORDS','valid');
+    tagIR('INVALID_RECORDS','invalid');
+  });
+})(apex.jQuery);
+
+
+
+
+
