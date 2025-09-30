@@ -310,3 +310,67 @@ ORDER BY job_id DESC;
 
 
 
+
+/* ============================= */
+/* VALID RECORDS (Static ID: VALID_RECORDS) */
+/* ============================= */
+
+/* Region header via UT variables (reliable across versions) */
+#VALID_RECORDS {
+  --ut-region-header-background-color: #28a745; /* green */
+  --ut-region-header-text-color: #ffffff;
+}
+
+/* Fallback in case variables are overridden by Theme Roller */
+#VALID_RECORDS .t-Region-header,
+#VALID_RECORDS .t-Region-headerItems,
+#VALID_RECORDS .t-Region-title {
+  background-color: #28a745 !important;
+  color: #ffffff !important;
+}
+
+/* Table rows: cover multiple IR table selectors */
+#VALID_RECORDS_report table.a-IRR-table tbody tr td,
+#VALID_RECORDS_report .a-IRR-table tbody tr td,
+#VALID_RECORDS .a-IRR-region .a-IRR-table tbody tr td {
+  background-color: #e8f7ee !important; /* light green */
+}
+#VALID_RECORDS_report table.a-IRR-table tbody tr:hover td,
+#VALID_RECORDS_report .a-IRR-table tbody tr:hover td,
+#VALID_RECORDS .a-IRR-region .a-IRR-table tbody tr:hover td {
+  background-color: #c7f0d6 !important; /* darker green on hover */
+}
+
+
+/* ================================ */
+/* INVALID RECORDS (Static ID: INVALID_RECORDS) */
+/* ================================ */
+
+/* Region header via UT variables */
+#INVALID_RECORDS {
+  --ut-region-header-background-color: #dc3545; /* red */
+  --ut-region-header-text-color: #ffffff;
+}
+
+/* Fallback selectors */
+#INVALID_RECORDS .t-Region-header,
+#INVALID_RECORDS .t-Region-headerItems,
+#INVALID_RECORDS .t-Region-title {
+  background-color: #dc3545 !important;
+  color: #ffffff !important;
+}
+
+/* Table rows */
+#INVALID_RECORDS_report table.a-IRR-table tbody tr td,
+#INVALID_RECORDS_report .a-IRR-table tbody tr td,
+#INVALID_RECORDS .a-IRR-region .a-IRR-table tbody tr td {
+  background-color: #fdeaea !important; /* light red */
+}
+#INVALID_RECORDS_report table.a-IRR-table tbody tr:hover td,
+#INVALID_RECORDS_report .a-IRR-table tbody tr:hover td,
+#INVALID_RECORDS .a-IRR-region .a-IRR-table tbody tr:hover td {
+  background-color: #f9c7c7 !important; /* darker red on hover */
+}
+
+
+
