@@ -433,12 +433,24 @@ ORDER BY d.seq_no;
 
 
 
-CREATE OR REPLACE PROCEDURE ERESUSER_OWNER.AUTO_DNP(jobid_in in number)
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE OR REPLACE PROCEDURE ERESUSER_OWNER.AUTO_DNP
 IS
     /*********************************************************************************
     1.0         Ashutosh                Created this proc for auto DNP from Apex
     *********************************************************************************/
-    l_latest_job_id number:=jobid_in;
+    
     cnt number:= 0;
     CURSOR c1 IS
         SELECT DISTINCT brd.PTS_RES_GROUP_ID, pc.QUEUE_ID
@@ -456,7 +468,7 @@ BEGIN
                SUSP_COMMENT_ID = 8,
                RES_DT = TRUNC (SYSDATE),
                USER_NAME = 'SYSTEM',
-               PTS_GRP_NOTE = 'Auto-DNP bulk resolution perform job id:' || l_latest_job_id -- Add job id and bulk resolution performed
+               PTS_GRP_NOTE = 'Auto-DNP Bulk Resolution performed' -- Add job id and bulk resolution performed
          WHERE PTS_RES_Group_id = i.pts_res_group_id;
 
         UPDATE ERESUSER_OWNER.PTS_CASE
@@ -474,7 +486,7 @@ BEGIN
                      i.PTS_RES_GROUP_ID,
                      1179,
                      SYSDATE,
-                     'Auto-DNP bulk resolution perform job id:' || l_latest_job_id, -- Add job id and bulk resolution performed
+                     'Auto-DNP Bulk Resolution performed', -- Add job id and bulk resolution performed
                      'SYSTEM',
                      i.QUEUE_ID);
 
@@ -496,6 +508,8 @@ EXCEPTION
         DBMS_OUTPUT.PUT_LINE ('ERROR: ' || SQLERRM);
 END;
 /
+
+
 
 
 
