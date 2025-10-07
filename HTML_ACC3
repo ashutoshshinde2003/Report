@@ -514,3 +514,17 @@ END;
 
 
 
+
+
+BEGIN
+    DBMS_SCHEDULER.create_job (
+        job_name        => 'AUTO_DNP_NIGHTLY_RUN',  -- unique name for your job
+        job_type        => 'PLSQL_BLOCK',           -- we’re running PL/SQL
+        job_action      => 'BEGIN apex_mod.run_auto_dnp_scheduled; END;',
+        start_date      => SYSTIMESTAMP,            -- start immediately (first run)
+        repeat_interval => 'FREQ=DAILY; BYHOUR=2; BYMINUTE=15; BYSECOND=0',
+        enabled         => TRUE,                    -- start scheduling right away
+        comments        => 'Runs AUTO_DNP procedure nightly and updates job statuses.'
+    );
+END;
+/
