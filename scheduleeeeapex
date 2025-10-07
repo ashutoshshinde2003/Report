@@ -4,7 +4,7 @@ BEGIN
     job_type        => 'PLSQL_BLOCK',
     job_action      => 'BEGIN eresuser_owner.auto_dnp; END;',
     start_date      => FROM_TZ(
-                         CAST(TRUNC(SYSTIMESTAMP) + INTERVAL '12:25' HOUR TO MINUTE AS TIMESTAMP),
+                         CAST(TRUNC(SYSDATE) + (12 + 25/60)/24 AS TIMESTAMP),
                          'Asia/Kolkata'
                        ),
     repeat_interval => 'FREQ=DAILY; BYHOUR=12; BYMINUTE=25; BYSECOND=0',
@@ -13,6 +13,8 @@ BEGIN
   );
 END;
 /
+
+
 
 
 
