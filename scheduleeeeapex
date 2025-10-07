@@ -1,0 +1,27 @@
+BEGIN
+  DBMS_SCHEDULER.create_job (
+    job_name        => 'AUTO_DNP_NIGHTLY_RUN',
+    job_type        => 'PLSQL_BLOCK',
+    job_action      => 'BEGIN eresuser_owner.auto_dnp; END;',
+    start_date      => FROM_TZ(
+                         CAST(TRUNC(SYSTIMESTAMP) + INTERVAL '12:25' HOUR TO MINUTE AS TIMESTAMP),
+                         'Asia/Kolkata'
+                       ),
+    repeat_interval => 'FREQ=DAILY; BYHOUR=12; BYMINUTE=25; BYSECOND=0',
+    enabled         => TRUE,
+    comments        => 'Runs AUTO_DNP procedure daily at 12:25 PM IST.'
+  );
+END;
+/
+
+
+
+
+
+
+SELECT job_name,
+       enabled,
+       state,
+       TO_CHAR(next_run_date, 'DD-MON-YYYY HH24:MI:SS TZR') AS next_run_time
+FROM user_scheduler_jobs
+WHERE job_name = 'AUTO_DNP_NIGHTLY_RUN';
