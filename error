@@ -2,3 +2,20 @@ SELECT column_name, data_type
 FROM all_tab_columns
 WHERE table_name IN ('INC_RWRD_DTL','PARTY_HIERARCHY')
   AND column_name IN ('WORK_OF_DT','BEGIN_WORKOFDATE');
+
+
+
+
+SELECT DISTINCT TO_CHAR(Work_Of_Dt, 'YYYY-MM-DD HH24:MI:SS')
+FROM Inc_Rwrd_Dtl
+WHERE Work_Of_Dt >= TO_DATE('2024-06-24','YYYY-MM-DD')
+  AND Work_Of_Dt < TO_DATE('2024-06-25','YYYY-MM-DD');
+
+
+
+SELECT COUNT(*)
+FROM Inc_Rwrd_Dtl
+WHERE TRUNC(Work_Of_Dt) = TO_DATE('20240624','YYYYMMDD');
+
+
+
