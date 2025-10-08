@@ -1,39 +1,4 @@
-SELECT
-  'INCOMING'                                  AS interchange_type,
-  A.i_rwrd                                    AS amount,
-  CASE
-    WHEN A.card_acct_num IS NULL
-         OR TRIM(NVL(TO_CHAR(A.card_acct_num),'')) = '' THEN 'Unknown'
-    WHEN LENGTH(TO_CHAR(A.card_acct_num)) > 15 THEN
-      SUBSTR(TO_CHAR(A.card_acct_num),1,6)
-      || RPAD('X', GREATEST(LENGTH(TO_CHAR(A.card_acct_num)) - 10, 0), 'X')
-      || SUBSTR(TO_CHAR(A.card_acct_num), -4)
-    ELSE 'Unknown'
-  END AS card_acct_number
-FROM Inc_Rwrd_Dtl A
-JOIN Party_Hierarchy PH
-  ON PH.Party_ID = A.Party_ID
- AND TRUNC(PH.Begin_WorkOfDate) = TRUNC(A.Begin_WorkOfDate)  -- use TRUNC if time component might differ
-WHERE
-  -- if Work_Of_Dt is a DATE:
-  A.Work_Of_Dt = TO_DATE('20240624','YYYYMMDD')
-  -- if Work_Of_Dt is varchar/number, use the matching literal (e.g. = '20240624' or = 20240624)
-  AND UPPER(NVL(PH.anc_composite_id,'')) LIKE 'BAMS CONVERTED%'
-ORDER BY card_acct_number;
-
-
-
-
-
-SELECT 'INCOMING' INTERCHANGE_TYPE,
-       A.i_rwrd AMOUNT,
-       DECODE(
-         SIGN(LENGTH(NVL(TO_CHAR(card_acct_num),'')) - 15),
-         1, SUBSTR(TO_CHAR(card_acct_num),1,6) || RPAD('X', GREATEST(LENGTH(TO_CHAR(card_acct_num)) - 10,0),'X') || SUBSTR(TO_CHAR(card_acct_num),-4),
-         'Unknown'
-       ) CARD_ACCT_NUMBER
-FROM Inc_Rwrd_Dtl A
-JOIN Party_Hierarchy PH
-  ON PH.Party_ID = A.Party_ID AND TRUNC(PH.Begin_WorkOfDate) = TRUNC(A.Begin_WorkOfDate)
-WHERE A.Work_Of_Dt = TO_DATE('20240624','YYYYMMDD')
-  AND UPPER(NVL(PH.anc_composite_id,'')) LIKE 'BAMS CONVERTED%';
+SELECT column_name, data_type
+FROM all_tab_columns
+WHERE table_name IN ('INC_RWRD_DTL','PARTY_HIERARCHY')
+  AND column_name IN ('WORK_OF_DT','BEGIN_WORKOFDATE');
