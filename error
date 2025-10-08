@@ -1,1 +1,39 @@
- SELECT 'INCOMING' INTERCHANGE_TYPE, i_rwrd AMOUNT, decode( sign((length(card_acct_num) -15 )), 1, SUBSTR (card_acct_num, 1, 6) || RPAD ('X', LENGTH (card_acct_num) - 10, 'X') || SUBSTR (card_acct_num, -4, 4),  '', 'Unknown', '') CARD_ACCT_NUMBER FROM Party_Hierarchy ph,  Inc_Rwrd_Dtl A  WHERE A.Work_Of_Dt = '20240624' AND ph.Party_ID = A.Party_ID AND ph.Begin_WorkOfDate = A.Begin_WorkOfDate AND ph.anc_composite_id||'' LIKE 'BAMS CONVERTED%' ORDER BY card_acct_num
+SELECT
+  'INCOMING'                                  AS interchange_type,
+  A.i_rwrd                                    AS amount,
+  CASE
+    WHEN A.card_acct_num IS NULL
+         OR TRIM(NVL(TO_CHAR(A.card_acct_num),'')) = '' THEN 'Unknown'
+    WHEN LENGTH(TO_CHAR(A.card_acct_num)) > 15 THEN
+      SUBSTR(TO_CHAR(A.card_acct_num),1,6)
+      || RPAD('X', GREATEST(LENGTH(TO_CHAR(A.card_acct_num)) - 10, 0), 'X')
+      || SUBSTR(TO_CHAR(A.card_acct_num), -4)
+    ELSE 'Unknown'
+  END AS card_acct_number
+FROM Inc_Rwrd_Dtl A
+JOIN Party_Hierarchy PH
+  ON PH.Party_ID = A.Party_ID
+ AND TRUNC(PH.Begin_WorkOfDate) = TRUNC(A.Begin_WorkOfDate)  -- use TRUNC if time component might differ
+WHERE
+  -- if Work_Of_Dt is a DATE:
+  A.Work_Of_Dt = TO_DATE('20240624','YYYYMMDD')
+  -- if Work_Of_Dt is varchar/number, use the matching literal (e.g. = '20240624' or = 20240624)
+  AND UPPER(NVL(PH.anc_composite_id,'')) LIKE 'BAMS CONVERTED%'
+ORDER BY card_acct_number;
+
+
+
+
+
+SELECT 'INCOMING' INTERCHANGE_TYPE,
+       A.i_rwrd AMOUNT,
+       DECODE(
+         SIGN(LENGTH(NVL(TO_CHAR(card_acct_num),'')) - 15),
+         1, SUBSTR(TO_CHAR(card_acct_num),1,6) || RPAD('X', GREATEST(LENGTH(TO_CHAR(card_acct_num)) - 10,0),'X') || SUBSTR(TO_CHAR(card_acct_num),-4),
+         'Unknown'
+       ) CARD_ACCT_NUMBER
+FROM Inc_Rwrd_Dtl A
+JOIN Party_Hierarchy PH
+  ON PH.Party_ID = A.Party_ID AND TRUNC(PH.Begin_WorkOfDate) = TRUNC(A.Begin_WorkOfDate)
+WHERE A.Work_Of_Dt = TO_DATE('20240624','YYYYMMDD')
+  AND UPPER(NVL(PH.anc_composite_id,'')) LIKE 'BAMS CONVERTED%';
