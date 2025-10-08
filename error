@@ -19,3 +19,78 @@ WHERE TRUNC(Work_Of_Dt) = TO_DATE('20240624','YYYYMMDD');
 
 
 
+CREATE OR REPLACE PROCEDURE ERESUSER_OWNER.AUTO_DNP
+IS
+    /*********************************************************************************
+    1.0         Ashutosh                Created this proc for auto DNP from Apex
+    *********************************************************************************/
+    
+    cnt number:= 0;
+    CURSOR c1 IS
+        SELECT DISTINCT brd.PTS_RES_GROUP_ID, pc.QUEUE_ID
+         FROM apex_mod.ERES_BULK_RES_UPLOAD_DETAIL brd, ERESUSER_OWNER.PTS_CASE pc
+         where brd.pts_res_group_id = pc.pts_res_group_id
+	 and pc.case_status_id not in (20);
+         
+BEGIN
+    FOR i IN c1
+    LOOP
+        cnt := cnt + 1;
+
+        UPDATE ERESUSER_OWNER.PTS_BATCH_RESOLUTION
+           SET ACTION_ID = 1179,
+               SUSP_COMMENT_ID = 8,
+               RES_DT = TRUNC (SYSDATE),
+               USER_NAME = 'SYSTEM',
+               PTS_GRP_NOTE = 'Auto-DNP Bulk Resolution performed' -- Add job id and bulk resolution performed
+         WHERE PTS_RES_Group_id = i.pts_res_group_id;
+
+        UPDATE ERESUSER_OWNER.PTS_CASE
+           SET CASE_STATUS_ID = 20, CLOSED_DT = TRUNC (SYSDATE)
+         WHERE PTS_RES_Group_id = i.pts_res_group_id;
+
+        INSERT INTO ERESUSER_OWNER.PTS_BATCH_ACTION (CASE_ACTION_ID,
+                                      PTS_RES_GROUP_ID,
+                                      ACTION_ID,
+                                      CREATED_DT,
+                                      USER_COMMENT,
+                                      USER_NAME,
+                                      PRIOR_QUEUE_ID)
+             VALUES (SEQ_PTS_CASE_ACTION_ID.NEXTVAL,
+                     i.PTS_RES_GROUP_ID,
+                     1179,
+                     SYSDATE,
+                     'Auto-DNP Bulk Resolution performed', -- Add job id and bulk resolution performed
+                     'SYSTEM',
+                     i.QUEUE_ID);
+
+
+        IF cnt = 1000
+        THEN
+            COMMIT;
+            cnt := 0;
+        END IF;
+    END LOOP;
+
+
+
+	UPDATE apex_mod.eres_bulk_res_upload_smry
+	SET job_status = 'SUCCESSFUL',
+	apex_mod.eres_bulk_res_upload_smry.CREATED_DT = sysdate
+	where job_status = 'SCHEDULED';
+	
+	
+    COMMIT;
+    
+	
+    cnt := cnt + 1;
+    DBMS_OUTPUT.PUT_LINE ('Total Records: ' || cnt);
+EXCEPTION
+    WHEN OTHERS
+    THEN
+        DBMS_OUTPUT.PUT_LINE ('ERROR: ' || SQLERRM);
+END;
+/
+
+
+
