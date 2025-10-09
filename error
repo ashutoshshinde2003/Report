@@ -191,3 +191,62 @@ END;
 
 
 /
+
+
+
+
+
+
+
+
+
+
+
+// Utility function to style each card dynamically
+function styleCard(itemName, boxSelector, baseColor) {
+  var val = Number($v(itemName));
+  var box = $(boxSelector);
+
+  if (isNaN(val)) return; // skip invalid values
+
+  // Default card style
+  box.css({
+    "color": "white",
+    "background-color": baseColor,
+    "border-radius": "30px",
+    "padding": "20px",
+    "font-size": "20px",
+    "min-width": "175px",
+    "text-align": "center",
+    "transition": "transform 0.2s ease, box-shadow 0.2s ease"
+  });
+
+  // Optional: hide if 0
+  if (val === 0) {
+    box.css({
+      "opacity": "0.4",
+      "background-color": "#bbb"
+    });
+  }
+
+  // Smooth animation
+  box.hover(
+    function () { $(this).css({ "transform": "scale(1.05)", "box-shadow": "0 8px 20px rgba(0,0,0,0.15)" }); },
+    function () { $(this).css({ "transform": "scale(1.0)", "box-shadow": "none" }); }
+  );
+}
+
+// Run after page load and item values available
+$(document).ready(function() {
+  // Good records → green
+  styleCard("P24_NEW_GOOD", "div:contains('Processed Successfully')", "#4CAF50");
+  
+  // Bad records → orange
+  styleCard("P24_NEW_BAD", "div:contains('Unable to Process')", "#FFAC1C");
+  
+  // Duplicate records → purple
+  styleCard("P24_NEW_DUPLICATE", "div:contains('Duplicate Records')", "#9C27B0");
+  
+  // Invalid records → red
+  styleCard("P24_NEW_INVALID", "div:contains('Invalid Records')", "#F44336");
+});
