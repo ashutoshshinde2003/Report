@@ -250,3 +250,26 @@ $(document).ready(function() {
   // Invalid records → red
   styleCard("P24_NEW_INVALID", "div:contains('Invalid Records')", "#F44336");
 });
+
+
+
+
+
+
+
+// Wait until values load
+$(function() {
+  // Read the value of the page item
+  var val = $v("P24_NEW_DUPLICATE");
+
+  // Inject into the HTML div
+  $(".card-duplicate .value").text(val);
+
+  // Optional: visually dim if 0
+  if (val == 0 || val === "") {
+    $(".card-duplicate").css({
+      "background-color": "#bbb",
+      "opacity": "0.4"
+    });
+  }
+});
