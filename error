@@ -96,4 +96,98 @@ EXCEPTION
         DBMS_OUTPUT.PUT_LINE('FATAL ERROR: ' || SQLERRM);
         ROLLBACK;
 END;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style ="text-align:left;
+            font-size:24px;
+            font-weight:bold;
+            margin-bottom:20px;
+            color:#333;">
+            JOB ID: &P24_JOB_ID.</div>
+
+
+
+<div style="display:flex; gap:20px; align-items:center; justify-content:center;">
+  <div style="
+       background-color:#4CAF50;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Processed Successfully  
+    <div style="font-size:40px; font-weight:bold;">&P24_NEW_GOOD.</div>
+  </div>
+
+  <div style="
+       background-color:#FFAC1C;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Unable to Process
+    <div style="font-size:40px; font-weight:bold;">&P24_NEW_BAD.</div>
+  </div>
+
+
+    <div style="
+       background-color:#F44336;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Duplicate Records
+    <div style="font-size:40px; font-weight:bold;">&P24_NEW_DUP_COMP.</div>
+  </div>
+  
+    <div style="
+       background-color:#F44336;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Invalid Records
+    <div style="font-size:40px; font-weight:bold;">&P24_NEW_INVALID.</div>
+  </div>
+
+
+</div>
+
+
+
+
 /
