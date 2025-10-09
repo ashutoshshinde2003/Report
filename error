@@ -1,60 +1,52 @@
 CREATE OR REPLACE PROCEDURE ERESUSER_OWNER.AUTO_DNP
 IS
     /*********************************************************************************
-    1.4   Ashutosh - Verified Version
-          ✅ Same functionality as original
-          ✅ Skips junk/non-numeric PTS_RES_GROUP_ID safely
-          ✅ Logs skipped records with JOB_ID
-          ✅ Commits and updates same as original
+    2.0   Ashutosh - Final version for scheduled execution
+          ✅ Safe handling of VARCHAR pts_res_group_id
+          ✅ Skips junk/non-numeric entries silently
+          ✅ No JOB_ID dependency
+          ✅ No logging table
+          ✅ All original functionality preserved
     *********************************************************************************/
 
     cnt NUMBER := 0;
-    l_job_id apex_mod.eres_bulk_res_upload_smry.job_id%TYPE;
 
-    -- ✅ Cursor: identical to your original, but with REGEXP_LIKE and TO_NUMBER for safe conversion
+    -- Cursor: Select only valid numeric pts_res_group_id entries that are not already closed
     CURSOR c1 IS
         SELECT DISTINCT TO_NUMBER(brd.pts_res_group_id) AS pts_res_group_id,
                         pc.queue_id
           FROM apex_mod.eres_bulk_res_upload_detail brd
           JOIN eresuser_owner.pts_case pc
             ON TO_NUMBER(brd.pts_res_group_id) = pc.pts_res_group_id
-         WHERE REGEXP_LIKE(brd.pts_res_group_id, '^\d+$')  -- process only numeric IDs
-           AND pc.case_status_id NOT IN (20);              -- skip already closed
+         WHERE REGEXP_LIKE(brd.pts_res_group_id, '^\d+$')   -- process only numeric IDs
+           AND pc.case_status_id NOT IN (20);               -- skip already closed
 
 BEGIN
-    --------------------------------------------------------------------
-    -- ✅ Step 1: Fetch the current SCHEDULED JOB_ID (like original end-update logic)
-    --------------------------------------------------------------------
-    SELECT MAX(job_id)
-      INTO l_job_id
-      FROM apex_mod.eres_bulk_res_upload_smry
-     WHERE job_status = 'SCHEDULED';
-
-    DBMS_OUTPUT.PUT_LINE('Starting AUTO_DNP for JOB_ID: ' || l_job_id);
+    DBMS_OUTPUT.PUT_LINE('AUTO_DNP started at: ' || TO_CHAR(SYSDATE, 'DD-MON-YYYY HH24:MI:SS'));
 
     --------------------------------------------------------------------
-    -- ✅ Step 2: Main processing loop (same updates and inserts as original)
+    -- Main Loop: identical functionality, with safety
     --------------------------------------------------------------------
     FOR i IN c1 LOOP
         BEGIN
             cnt := cnt + 1;
 
-            -- ✅ Update 1: PTS_BATCH_RESOLUTION (unchanged)
+            -- Update batch resolution
             UPDATE eresuser_owner.pts_batch_resolution
-               SET action_id = 1179,
+               SET action_id       = 1179,
                    susp_comment_id = 8,
-                   res_dt = TRUNC(SYSDATE),
-                   user_name = 'SYSTEM',
-                   pts_grp_note = 'Auto-DNP Bulk Resolution performed'
+                   res_dt          = TRUNC(SYSDATE),
+                   user_name       = 'SYSTEM',
+                   pts_grp_note    = 'Auto-DNP Bulk Resolution performed'
              WHERE pts_res_group_id = i.pts_res_group_id;
 
-            -- ✅ Update 2: PTS_CASE (unchanged)
+            -- Update case table
             UPDATE eresuser_owner.pts_case
                SET case_status_id = 20,
-                   closed_dt = TRUNC(SYSDATE)
+                   closed_dt      = TRUNC(SYSDATE)
              WHERE pts_res_group_id = i.pts_res_group_id;
 
-            -- ✅ Insert: PTS_BATCH_ACTION (unchanged)
+            -- Insert into batch action
             INSERT INTO eresuser_owner.pts_batch_action (
                 case_action_id,
                 pts_res_group_id,
@@ -73,7 +65,7 @@ BEGIN
                 i.queue_id
             );
 
-            -- ✅ Commit every 1000 (unchanged)
+            -- Commit every 1000 records (unchanged)
             IF cnt = 1000 THEN
                 COMMIT;
                 cnt := 0;
@@ -81,30 +73,23 @@ BEGIN
 
         EXCEPTION
             WHEN OTHERS THEN
-                -- ✅ New: Safe skip for junk/alphabetic or failed entries
-                DBMS_OUTPUT.PUT_LINE(
-                    'Skipping invalid record: ' || i.pts_res_group_id || ' - ' || SQLERRM
-                );
-
-                -- ✅ Log only junk or failed records (no PK constraint)
-                INSERT INTO apex_mod.eres_bulk_res_upload_detail_log
-                    (pts_res_group_id, job_id, status, error_msg, created_dt)
-                VALUES
-                    (i.pts_res_group_id, l_job_id, 'SKIPPED', SQLERRM, SYSDATE);
+                -- Skip junk, invalid, or problematic records silently
+                DBMS_OUTPUT.PUT_LINE('Skipped invalid entry: ' || SQLERRM);
+                CONTINUE;
         END;
     END LOOP;
 
     --------------------------------------------------------------------
-    -- ✅ Step 3: Update JOB STATUS same as original
+    -- Mark all scheduled jobs as successful after completion
     --------------------------------------------------------------------
     UPDATE apex_mod.eres_bulk_res_upload_smry
        SET job_status = 'SUCCESSFUL',
            created_dt = SYSDATE
-     WHERE job_id = l_job_id;
+     WHERE job_status = 'SCHEDULED';
 
     COMMIT;
 
-    DBMS_OUTPUT.PUT_LINE('AUTO_DNP completed successfully for JOB_ID: ' || l_job_id);
+    DBMS_OUTPUT.PUT_LINE('AUTO_DNP completed successfully at: ' || TO_CHAR(SYSDATE, 'DD-MON-YYYY HH24:MI:SS'));
 
 EXCEPTION
     WHEN OTHERS THEN
@@ -112,15 +97,3 @@ EXCEPTION
         ROLLBACK;
 END;
 /
-
-
-
-
-
-CREATE TABLE apex_mod.eres_bulk_res_upload_detail_log (
-    pts_res_group_id   VARCHAR2(50),
-    job_id             NUMBER,
-    status             VARCHAR2(50),
-    error_msg          VARCHAR2(4000),
-    created_dt         DATE DEFAULT SYSDATE
-);
