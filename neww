@@ -1,77 +1,74 @@
 (function($){
-  // Your original tagging function
+  // --- tagIR logic kept from your original ---
   function tagIR(staticId, tag){
     $('#' + staticId + '_toolbar').addClass(tag + '-toolbar');
     $('#' + staticId + '_report').addClass(tag + '-report');
   }
-
-  // Apply tagging to both reports
   $(function(){
     tagIR('VALID_RECORDS','valid');
     tagIR('INVALID_RECORDS','invalid');
+  });
 
-    // Define both Interactive Report static IDs
-    const irRegions = ['VALID_RECORDS', 'INVALID_RECORDS'];
+  // -------- Jump-to-Page logic (simplified, robust) --------
+  function injectJumpBox(regionId){
+    const $toolbar = $('#' + regionId + '_toolbar');
+    if(!$toolbar.length) return;
 
-    // Wait until IR is fully initialized, then inject pagination box
-    irRegions.forEach(regionId => {
-      apex.region(regionId).widget().on('apexafterrefresh', function(){
-        createOrUpdatePageJump(regionId);
-      });
+    // Remove any previous box
+    $('#' + regionId + '_jumpBox').remove();
 
-      // Initial build after a short delay (to ensure IR metadata is ready)
-      setTimeout(() => createOrUpdatePageJump(regionId), 800);
-    });
+    // Read pagination numbers from toolbar itself
+    const $info = $toolbar.find('.a-IRR-paginationWrap--bottom .a-IRR-pagination');
+    if(!$info.length) return;
 
-    // ---- Function: create or update the jump control ----
-    function createOrUpdatePageJump(regionId){
-      const ir = apex.region(regionId).widget();
-      if (!ir || !ir.options) return;
+    // Read total rows from IR model if possible
+    let totalRows = 0, rowsPerPage = 0, totalPages = 1;
+    try {
+      const w = apex.region(regionId).widget();
+      rowsPerPage = w.options.rowsPerPage || 10;
+      totalRows = w.model.getTotalRecords ? w.model.getTotalRecords() : w.options.totalRows;
+      totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
+    } catch(e){ console.warn(e); }
 
-      const rowsPerPage = ir.options.rowsPerPage || 15;
-      const totalRows = ir.options.totalRows || ir.model.getTotalRecords();
-      const totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
-      const currentPage = ir.options.currentPage || Math.ceil((ir.options.firstRow || 1) / rowsPerPage);
+    const html = `
+      <div id="${regionId}_jumpBox" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px;">
+        <label style="font-weight:bold;font-size:13px;">Page:</label>
+        <input type="number" id="${regionId}_page" min="1" max="${totalPages}" value="1"
+               style="width:60px;text-align:center;border-radius:6px;border:1px solid #ccc;padding:3px;">
+        <span style="font-size:13px;">/ ${totalPages}</span>
+        <button id="${regionId}_go" class="t-Button t-Button--primary t-Button--small">Go</button>
+      </div>`;
+    $info.append(html);
 
-      const inputId = regionId + '_pageJump';
-      const goId = regionId + '_pageGo';
-      const wrapId = regionId + '_pageJumpWrap';
-
-      // Remove any old controls
-      $('#' + wrapId).remove();
-
-      // Build control HTML
-      const html = `
-        <div id="${wrapId}" style="display:inline-flex; align-items:center; gap:6px; margin-left:10px;">
-          <label for="${inputId}" style="font-weight:bold; font-size:13px;">Page:</label>
-          <input type="number" id="${inputId}" min="1" max="${totalPages}" value="${currentPage}"
-                 style="width:60px; text-align:center; border-radius:6px; padding:3px; border:1px solid #ccc;">
-          <span style="font-size:13px;">/ ${totalPages}</span>
-          <button id="${goId}" class="t-Button t-Button--primary t-Button--small">Go</button>
-        </div>
-      `;
-
-      // Append inside the bottom pagination area
-      const paginationArea = $('#' + regionId + '_toolbar .a-IRR-paginationWrap--bottom .a-IRR-pagination');
-      if (paginationArea.length) paginationArea.append(html);
-      else $('#' + regionId + '_toolbar').append(html);
-
-      // Handle Go button click
-      $(document).off('click', '#' + goId).on('click', '#' + goId, function(){
-        const pageNum = parseInt($('#' + inputId).val(), 10);
-        if (isNaN(pageNum) || pageNum < 1 || pageNum > totalPages) {
-          apex.message.showErrors([
-            { type: 'error', location: 'page', message: 'Enter a valid page between 1 and ' + totalPages }
-          ]);
+    // handle click + enter
+    $(document)
+      .off('click','#' + regionId + '_go')
+      .on('click','#' + regionId + '_go',function(){
+        const val = parseInt($('#' + regionId + '_page').val(),10);
+        if(isNaN(val) || val<1 || val>totalPages){
+          apex.message.showErrors([{type:'error',message:`Enter page 1–${totalPages}`}]);
           return;
         }
-        ir.worksheet('paginate', { p_pg_min_row: (pageNum - 1) * rowsPerPage + 1 });
+        const w = apex.region(regionId).widget();
+        w.worksheet('paginate',{p_pg_min_row:(val-1)*w.options.rowsPerPage+1});
+      })
+      .off('keypress','#' + regionId + '_page')
+      .on('keypress','#' + regionId + '_page',function(e){
+        if(e.which===13) $('#' + regionId + '_go').click();
       });
+  }
 
-      // Handle Enter key
-      $(document).off('keypress', '#' + inputId).on('keypress', '#' + inputId, function(e){
-        if (e.which === 13) $('#' + goId).click();
-      });
-    }
+  function setup(regionId){
+    const reg = apex.region(regionId);
+    if(!reg || !reg.widget) return;
+    // build once IR ready
+    setTimeout(()=>injectJumpBox(regionId),800);
+    reg.widget().on('apexafterrefresh',()=>injectJumpBox(regionId));
+  }
+
+  // call for each report
+  $(function(){
+    setup('VALID_RECORDS');
+    setup('INVALID_RECORDS');
   });
 })(apex.jQuery);
