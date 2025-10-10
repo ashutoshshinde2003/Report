@@ -1,123 +1,136 @@
 (function($){
-  /* -------------------------
-     KEEP YOUR ORIGINAL tagIR
-     (we preserve this exactly as you requested)
-     ------------------------- */
+  // keep original tagIR function exactly as requested
   function tagIR(staticId, tag){
     $('#' + staticId + '_toolbar').addClass(tag + '-toolbar');
     $('#' + staticId + '_report').addClass(tag + '-report');
   }
 
-  /* list of IR static IDs (change if you renamed) */
+  // List of IR static IDs
   var regionList = ['VALID_RECORDS','INVALID_RECORDS'];
 
   $(function(){
-    // Preserve your existing calls
+    // preserve your existing calls
     tagIR('VALID_RECORDS','valid');
     tagIR('INVALID_RECORDS','invalid');
 
-    // For each region attempt to inject the page-jump control (with retries)
+    // for each region try to inject control (with retries & refresh handler)
     regionList.forEach(function(staticId){
       waitAndInject(staticId, 0);
     });
   });
 
-  /* ---------- Helpers ---------- */
-
-  // Wait for region/widget to be ready (retries)
+  // retry loop until region widget is available
   function waitAndInject(staticId, attempt){
     attempt = attempt || 0;
     var maxAttempts = 30;
-    var retryDelay = 250; // ms
+    var retryDelay = 250;
 
-    var reg;
-    try { reg = apex.region(staticId); } catch(e){ reg = null; }
+    var reg = null;
+    try { reg = apex.region(staticId); } catch (e) { reg = null; }
 
-    // If not yet available, retry
-    if(!reg || (typeof reg.widget !== 'function') ){
-      if(attempt < maxAttempts) {
+    if(!reg || typeof reg.widget !== 'function'){
+      if(attempt < maxAttempts){
         setTimeout(function(){ waitAndInject(staticId, attempt+1); }, retryDelay);
       }
       return;
     }
 
-    var widget = reg.widget();
-    // If widget() returned nothing yet try again
+    // widget may still not be ready
+    var widget = null;
+    try { widget = reg.widget(); } catch (e) { widget = null; }
+
     if(!widget){
-      if(attempt < maxAttempts) {
+      if(attempt < maxAttempts){
         setTimeout(function(){ waitAndInject(staticId, attempt+1); }, retryDelay);
       }
       return;
     }
 
-    // inject now (and attach refresh listener to re-inject after IR refresh)
-    injectControl(staticId, widget);
+    // Now inject control
+    injectControl(staticId);
 
-    // Attach after-refresh listener (re-inject after IR runs a refresh)
+    // Attach to region element 'apexafterrefresh' to re-inject after refresh
     try {
-      // safe: some APEX versions support this callback
-      reg.widget().on('apexafterrefresh', function(){
-        // slight delay so DOM settles
-        setTimeout(function(){ injectControl(staticId, widget); }, 250);
-      });
+      var $el = reg.element ? reg.element() : $('#' + staticId + '_report').closest('.a-IRR-region');
+      if($el && $el.length){
+        // remove previous handler to avoid duplicates, then attach
+        $el.off('apexafterrefresh.pageJump.' + staticId);
+        $el.on('apexafterrefresh.pageJump.' + staticId, function(){
+          // small delay for DOM to settle
+          setTimeout(function(){ injectControl(staticId); }, 150);
+        });
+      }
     } catch(e){
-      // ignore if not supported
+      console.warn('attach apexafterrefresh failed for', staticId, e);
     }
   }
 
-  // Build and insert the control
-  function injectControl(staticId, widget){
+  // Create / re-create the page jump control for a region
+  function injectControl(staticId){
     try {
       var ctrlId = staticId + '_pageJumpWrap';
       var inputId = staticId + '_pageJump';
-      var goId    = staticId + '_pageGo';
+      var goId = staticId + '_pageGo';
 
-      // remove old control if any (keeps DOM clean)
+      // remove any existing control
       $('#' + ctrlId).remove();
 
-      // determine rowsPerPage and totalPages with multiple fallbacks
-      var rowsPerPage = 10; // default
-      var totalPages = 1;
-      var currentPage = 1;
-      var totalRows = null;
+      // compute pagination meta (multiple fallbacks)
+      var totalPages = 1, currentPage = 1, rowsPerPage = 10, totalRows = null;
 
-      // prefer widget.options if present
-      if(widget && widget.options){
-        if(widget.options.rowsPerPage) rowsPerPage = parseInt(widget.options.rowsPerPage, 10) || rowsPerPage;
-        if(widget.options.totalPages) totalPages = parseInt(widget.options.totalPages, 10) || totalPages;
-        if(widget.options.currentPage) currentPage = parseInt(widget.options.currentPage, 10) || currentPage;
-        if(widget.options.totalRows) totalRows = parseInt(widget.options.totalRows, 10);
+      // 1) try widget.options (if present)
+      try {
+        var reg = apex.region(staticId);
+        if(reg && typeof reg.widget === 'function'){
+          var w = reg.widget();
+          if(w && w.options){
+            if(w.options.rowsPerPage) rowsPerPage = parseInt(w.options.rowsPerPage, 10) || rowsPerPage;
+            if(w.options.totalPages) totalPages = parseInt(w.options.totalPages, 10) || totalPages;
+            if(w.options.currentPage) currentPage = parseInt(w.options.currentPage, 10) || currentPage;
+            if(w.options.totalRows) totalRows = parseInt(w.options.totalRows, 10) || totalRows;
+          }
+        }
+      } catch(e){ /* ignore */ }
+
+      // 2) fallback: read pagination DOM in bottom area (prefer bottom)
+      var pagContainer = $('#' + staticId + '_toolbar').find('.a-IRR-paginationWrap--bottom .a-IRR-pagination, .a-IRR-pagination').first();
+      if(!pagContainer || !pagContainer.length){
+        // another fallback: region root
+        var regionRoot = $('#' + staticId + '_report').closest('.a-IRR-region');
+        pagContainer = regionRoot.find('.a-IRR-paginationWrap--bottom .a-IRR-pagination, .a-IRR-pagination').first();
       }
 
-      // fallback: find rowsPerPage in DOM controls (some APEX versions)
-      if(!rowsPerPage || rowsPerPage <= 0){
-        var toolbar = $('#' + staticId + '_toolbar');
-        var rpsText = toolbar.find('.a-IRR-pageSize, .a-IRR-pageSize--text').text() || '';
-        var m = rpsText.match(/(\d+)/);
-        if(m) rowsPerPage = parseInt(m[1],10);
+      if(pagContainer && pagContainer.length){
+        // attempt to find last page number from link text
+        var last = 0;
+        pagContainer.find('a,button,span').each(function(){
+          var t = $(this).text().trim();
+          var n = parseInt(t,10);
+          if(!isNaN(n) && n > last) last = n;
+        });
+        if(last > 0) totalPages = last;
+        // current page: look for element with aria-current or active class
+        var curEl = pagContainer.find('[aria-current="true"], .is-active, .a-IRR-page--active').first();
+        if(curEl && curEl.length){
+          var t = curEl.text().trim();
+          var n = parseInt(t,10);
+          if(!isNaN(n)) currentPage = n;
+        }
       }
 
-      // if totalPages unknown but we have totalRows, compute it
-      if((!totalPages || totalPages <= 0) && totalRows){
+      // 3) derive totalPages from totalRows if available
+      if((!totalPages || totalPages < 1) && totalRows && rowsPerPage){
         totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
       }
 
-      // If still unknown, attempt to derive from pagination links in DOM
-      if((!totalPages || totalPages <= 1)){
-        var pagLinks = $('#' + staticId + '_toolbar').find('.a-IRR-pagination a, .a-IRR-pagination button');
-        var lastPageNum = 0;
-        pagLinks.each(function(){
-          var t = $(this).text().trim();
-          var n = parseInt(t, 10);
-          if(!isNaN(n)) lastPageNum = Math.max(lastPageNum, n);
-        });
-        if(lastPageNum > 0) totalPages = lastPageNum;
-      }
-
-      // final safety defaults
       totalPages = Math.max(1, totalPages);
       currentPage = Math.max(1, Math.min(totalPages, currentPage));
       rowsPerPage = Math.max(1, rowsPerPage);
+
+      // do not show control if only a single page
+      if(totalPages <= 1){
+        return;
+      }
 
       // build HTML
       var html = ''
@@ -129,101 +142,142 @@
         +   '<button id="' + goId + '" class="t-Button t-Button--primary t-Button--small" style="margin-left:6px;">Go</button>'
         + '</div>';
 
-      // find best place to append it: toolbar pagination area (bottom)
-      var toolbar = $('#' + staticId + '_toolbar');
-      var appended = false;
-      if(toolbar.length){
-        var pagWrap = toolbar.find('.a-IRR-paginationWrap--bottom .a-IRR-pagination');
-        if(!pagWrap.length) pagWrap = toolbar.find('.a-IRR-pagination');
-        if(!pagWrap.length) pagWrap = toolbar;
-        pagWrap.append(html);
-        appended = true;
+      // append to bottom pagination area if possible otherwise fallback
+      var attached = false;
+      if($('#' + staticId + '_toolbar').length){
+        var target = $('#' + staticId + '_toolbar').find('.a-IRR-paginationWrap--bottom .a-IRR-pagination, .a-IRR-pagination').first();
+        if(target && target.length){
+          target.append(html);
+          attached = true;
+        } else {
+          // append to toolbar itself
+          $('#' + staticId + '_toolbar').append(html);
+          attached = true;
+        }
       }
-
-      // fallback: find region root and append
-      if(!appended){
-        var regionRoot = $('#' + staticId + '_report').closest('.a-IRR-region');
-        if(regionRoot.length){
-          var pagWrap2 = regionRoot.find('.a-IRR-paginationWrap--bottom .a-IRR-pagination');
-          if(!pagWrap2.length) pagWrap2 = regionRoot.find('.a-IRR-pagination');
-          if(pagWrap2.length){
-            pagWrap2.append(html);
-            appended = true;
-          } else {
-            // final fallback: append after report
-            $('#' + staticId + '_report').after(html);
-            appended = true;
-          }
+      if(!attached){
+        // fallback to region root
+        var regionRoot2 = $('#' + staticId + '_report').closest('.a-IRR-region');
+        var target2 = regionRoot2.find('.a-IRR-paginationWrap--bottom .a-IRR-pagination, .a-IRR-pagination').first();
+        if(target2 && target2.length){
+          target2.append(html);
+          attached = true;
+        } else {
+          // final fallback: append after report element
+          $('#' + staticId + '_report').after(html);
+          attached = true;
         }
       }
 
-      // attach handlers (namespace safely to avoid duplicates)
-      $(document).off('click.paginate.' + staticId, '#' + goId);
-      $(document).on('click.paginate.' + staticId, '#' + goId, function(){
+      // Attach events (namespace so repeated injection doesn't double-bind)
+      $(document).off('click.pageJump.' + staticId, '#' + goId);
+      $(document).on('click.pageJump.' + staticId, '#' + goId, function(e){
+        e.preventDefault();
         var pageNum = parseInt($('#' + inputId).val(), 10);
         if(isNaN(pageNum) || pageNum < 1 || pageNum > totalPages){
           apex.message.showErrors([{ type: "error", location: "page", message: "Enter a valid page between 1 and " + totalPages }]);
           return;
         }
-        navigateToPage(staticId, widget, pageNum, rowsPerPage);
+        navigateToPage(staticId, pageNum);
       });
 
-      // enter key fires click
-      $(document).off('keypress.paginate.' + staticId, '#' + inputId);
-      $(document).on('keypress.paginate.' + staticId, '#' + inputId, function(e){
-        if(e.which === 13) $('#' + goId).click();
+      // Enter key in input fires the Go (prevent default form submission)
+      $(document).off('keypress.pageJump.' + staticId, '#' + inputId);
+      $(document).on('keypress.pageJump.' + staticId, '#' + inputId, function(e){
+        if(e.which === 13){
+          e.preventDefault();
+          $('#' + goId).click();
+        }
       });
 
-    } catch(ex){
-      // don't break the page if injection fails
-      console.warn('injectControl error for', staticId, ex);
+    } catch(err){
+      console.warn('injectControl error', staticId, err);
     }
-  } // end injectControl
+  }
 
-  // Navigate to a page — multiple fallbacks to support different APEX versions
-  function navigateToPage(staticId, widget, pageNum, rowsPerPage){
-    // 1) Preferred: widget.worksheet('paginate', { p_pg_min_row })
+  // navigate to page, robustly click the correct pagination element
+  function navigateToPage(staticId, pageNum){
     try {
-      if(widget && typeof widget.worksheet === 'function'){
-        var minRow = (pageNum - 1) * rowsPerPage + 1;
-        widget.worksheet('paginate', { p_pg_min_row: minRow });
-        return;
+      // Prefer clicking the bottom pagination item (if present)
+      var pagContainer = $('#' + staticId + '_toolbar').find('.a-IRR-paginationWrap--bottom .a-IRR-pagination, .a-IRR-pagination').first();
+      if(!pagContainer || !pagContainer.length){
+        var regionRoot = $('#' + staticId + '_report').closest('.a-IRR-region');
+        pagContainer = regionRoot.find('.a-IRR-paginationWrap--bottom .a-IRR-pagination, .a-IRR-pagination').first();
       }
-    } catch(e){ /* continue to fallback */ }
 
-    // 2) Interactive Grid method (if it's an IG disguised)
-    try {
-      if(widget && typeof widget.interactiveGrid === 'function'){
-        var ig = widget.interactiveGrid('getViews','grid');
-        if(ig && typeof ig.setCurrentPage === 'function'){
-          ig.setCurrentPage(pageNum);
+      var clickable = $();
+
+      // 1) look for data-page or data-apex-page attributes
+      if(pagContainer && pagContainer.length){
+        clickable = pagContainer.find('[data-page="' + pageNum + '"], [data-apex-page="' + pageNum + '"]');
+      }
+
+      // 2) look for aria-label containing page number or exact text
+      if(!clickable || !clickable.length){
+        if(pagContainer && pagContainer.length){
+          clickable = pagContainer.find('a,button,span').filter(function(){
+            var $t = $(this);
+            var txt = $t.text().trim();
+            var aria = ($t.attr('aria-label') || '').toLowerCase();
+            if(txt === String(pageNum)) return true;
+            if(aria.indexOf('page') !== -1 && aria.indexOf(String(pageNum)) !== -1) return true;
+            // some elements use title
+            var title = ($t.attr('title') || '').toLowerCase();
+            if(title.indexOf('page') !== -1 && title.indexOf(String(pageNum)) !== -1) return true;
+            return false;
+          });
+        }
+      }
+
+      // 3) final fallback: try top pagination
+      if((!clickable || !clickable.length) && $('#' + staticId + '_toolbar').length){
+        var topPag = $('#' + staticId + '_toolbar').find('.a-IRR-pagination').first();
+        clickable = topPag.find('[data-page="' + pageNum + '"], [data-apex-page="' + pageNum + '"]');
+        if(!clickable || !clickable.length){
+          clickable = topPag.find('a,button,span').filter(function(){
+            var $t = $(this);
+            return $t.text().trim() === String(pageNum);
+          });
+        }
+      }
+
+      if(clickable && clickable.length){
+        // prefer first clickable element that is not disabled/arrow
+        var chosen = null;
+        clickable.each(function(){
+          var $el = $(this);
+          var cls = ($el.attr('class') || '').toLowerCase();
+          // exclude prev/next icons by class or aria-label
+          var aria = ($el.attr('aria-label') || '').toLowerCase();
+          if(aria.indexOf('previous') !== -1 || aria.indexOf('next') !== -1) return; // skip arrows
+          if(cls.indexOf('prev') !== -1 || cls.indexOf('next') !== -1) return;
+          if($el.is(':disabled') || $el.hasClass('is-disabled') || $el.hasClass('a-IRR-page--disabled')) return;
+          chosen = $el;
+          return false;
+        });
+
+        if(!chosen) chosen = $(clickable.get(0));
+
+        // dispatch a real mouse click sequence on the native element
+        var node = chosen.get(0);
+        if(node){
+          node.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true}));
+          node.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, cancelable:true}));
+          node.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}));
           return;
         }
       }
-    } catch(e){ /* continue */ }
 
-    // 3) Click page link in pagination area (DOM approach)
-    try {
-      var toolbar = $('#' + staticId + '_toolbar');
-      if(toolbar.length){
-        // try find link with page number text
-        var link = toolbar.find('.a-IRR-pagination a, .a-IRR-pagination button').filter(function(){
-          var t = $(this).text().trim();
-          return t === String(pageNum);
-        }).first();
-        if(link && link.length){
-          link.trigger('click');
-          return;
+      // As a final fallback, try to refresh the region (user will be at page 1)
+      try {
+        var reg = apex.region(staticId);
+        if(reg && typeof reg.refresh === 'function'){
+          reg.refresh();
         }
-      }
-    } catch(e){ /* continue */ }
+      } catch(e){ /* ignore */ }
 
-    // 4) Final fallback: refresh region and let user filter (can't set page)
-    try {
-      var reg = apex.region(staticId);
-      if(reg && typeof reg.refresh === 'function') reg.refresh();
-    } catch(e){
-      console.warn('navigateToPage fallback refresh failed for', staticId, e);
+    } catch(err){
+      console.warn('navigateToPage error for ' + staticId + ' page ' + pageNum, err);
     }
   }
 
