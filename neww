@@ -1,0 +1,62 @@
+// ---- CONFIG ----
+const regionId = "VALID_RECORDS"; // your IR Static ID
+// ----------------
+
+function injectPageJumpControl() {
+  const ir$ = apex.region(regionId).widget();
+  const totalPages = ir$.options.totalPages || 1;
+  const currentPage = ir$.options.currentPage || 1;
+
+  // Build the "Jump to Page" control HTML
+  const jumpHTML = `
+    <div id="customPageJump" style="display:flex; align-items:center; gap:6px; margin-left:12px;">
+      <label for="pageJump" style="font-weight:bold;">Page:</label>
+      <input type="number" id="pageJump" min="1" max="${totalPages}" 
+             value="${currentPage}" 
+             style="width:60px; text-align:center; border:1px solid #ccc; border-radius:6px; padding:3px;">
+      <span>/ ${totalPages}</span>
+      <button id="pageGo" class="t-Button t-Button--primary t-Button--small">Go</button>
+    </div>
+  `;
+
+  // Remove any old version first
+  $("#customPageJump").remove();
+
+  // Insert into IR pagination toolbar (bottom-right area)
+  const toolbarRight = ir$.closest(".a-IRR-region").find(".a-IRR-paginationWrap--bottom .a-IRR-pagination");
+  if (toolbarRight.length) {
+    toolbarRight.append(jumpHTML);
+  }
+}
+
+// Inject on load
+injectPageJumpControl();
+
+// Recreate after every IR refresh (filters, sorting, etc.)
+apex.region(regionId).widget().on("apexafterrefresh", function() {
+  injectPageJumpControl();
+});
+
+// Handle Go button click
+$(document).on("click", "#pageGo", function() {
+  const ir$ = apex.region(regionId).widget();
+  const totalPages = ir$.options.totalPages || 1;
+  const pageNum = parseInt($("#pageJump").val(), 10);
+
+  if (isNaN(pageNum) || pageNum < 1 || pageNum > totalPages) {
+    apex.message.showErrors([
+      { type: "error", location: "page", message: "Enter a valid page between 1 and " + totalPages }
+    ]);
+    return;
+  }
+
+  // Jump to page
+  ir$.worksheet("paginate", {
+    p_pg_min_row: (pageNum - 1) * ir$.options.rowsPerPage + 1
+  });
+});
+
+// Handle Enter key
+$(document).on("keypress", "#pageJump", function(e) {
+  if (e.which === 13) $("#pageGo").click();
+});
