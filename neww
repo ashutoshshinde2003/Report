@@ -8,96 +8,115 @@
 
 
 
+  
+
+
+
+
+
 (function($){
-  // Tagging remains as you already use
+  // Helper to tag IRs (kept from your setup)
   function tagIR(staticId, tag){
     $('#' + staticId + '_toolbar').addClass(tag + '-toolbar');
     $('#' + staticId + '_report').addClass(tag + '-report');
   }
 
+  // On page load
   $(function(){
     tagIR('VALID_RECORDS','valid');
     tagIR('INVALID_RECORDS','invalid');
 
-    ['VALID_RECORDS','INVALID_RECORDS'].forEach(function(staticId){
-      initPageJump(staticId);
-      apex.jQuery('#' + staticId).on('apexafterrefresh', function(){
-        initPageJump(staticId);
-      });
-    });
+    // Initialize both reports
+    setupJump('VALID_RECORDS');
+    setupJump('INVALID_RECORDS');
   });
 
-  function initPageJump(staticId){
-    // remove any existing box
-    $('#' + staticId + '_pageJumpWrap').remove();
+  // Injects jump control after pagination area
+  function setupJump(staticId){
+    // wait for IR to fully render
+    setTimeout(function(){
+      const $region = $('#' + staticId + '_report').closest('.a-IRR-region');
+      if(!$region.length) return;
 
-    // Build input + Go button
-    const html = `
-      <div id="${staticId}_pageJumpWrap" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px;">
-        <label style="font-weight:bold;font-size:13px;">Page:</label>
-        <input type="number" id="${staticId}_pageJump" min="1" value="1"
-          style="width:60px;text-align:center;border-radius:5px;border:1px solid #ccc;padding:3px;">
-        <button id="${staticId}_pageGo" class="t-Button t-Button--small t-Button--primary">Go</button>
-      </div>`;
+      // locate pagination (bottom)
+      const $pagination = $region.find('.a-IRR-pagination');
+      if(!$pagination.length) return;
 
-    // Find pagination container (bottom only)
-    const pag = $('#' + staticId + '_report').closest('.a-IRR-region').find('.a-IRR-pagination');
-    if(pag.length){
-      pag.append(html);
-    }
+      // prevent duplicates
+      if($('#' + staticId + '_pageJumpWrap').length) return;
 
-    // Attach handler
-    $('#' + staticId + '_pageGo').off('click').on('click', function(){
-      jumpToPage(staticId);
-    });
+      // build the control
+      const html = `
+        <div id="${staticId}_pageJumpWrap" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px;">
+          <label style="font-weight:bold;font-size:13px;">Page:</label>
+          <input type="number" id="${staticId}_pageInput" min="1" value="1"
+                 style="width:60px;text-align:center;border-radius:5px;border:1px solid #ccc;padding:3px;">
+          <button id="${staticId}_pageBtn" class="t-Button t-Button--small t-Button--primary">Go</button>
+        </div>`;
 
-    $('#' + staticId + '_pageJump').off('keypress').on('keypress', function(e){
-      if(e.which === 13){
-        e.preventDefault();
-        jumpToPage(staticId);
-      }
-    });
+      // append control near pagination label
+      $pagination.append(html);
+
+      // event handler for Go button
+      $('#' + staticId + '_pageBtn').off('click').on('click', function(){
+        goToPage(staticId);
+      });
+
+      // event handler for Enter key
+      $('#' + staticId + '_pageInput').off('keypress').on('keypress', function(e){
+        if(e.which === 13){
+          e.preventDefault();
+          goToPage(staticId);
+        }
+      });
+    }, 800); // small delay to ensure pagination exists
   }
 
-  function jumpToPage(staticId){
-    const $region = apex.region(staticId);
-    const widget = $region && $region.widget ? $region.widget() : null;
-    const $pagination = $('#' + staticId + '_report').closest('.a-IRR-region').find('.a-IRR-pagination');
-    const label = $pagination.find('.a-IRR-pagination-label').text().trim();
+  // core logic for page jump
+  function goToPage(staticId){
+    const $region = $('#' + staticId + '_report').closest('.a-IRR-region');
+    const $pagination = $region.find('.a-IRR-pagination');
+    const labelText = $pagination.find('.a-IRR-pagination-label').text().trim();
 
-    // Extract visible range like "176 - 200"
-    let match = label.match(/(\d+)\s*-\s*(\d+)/);
-    if(!match) return;
-
-    const currentMin = parseInt(match[1],10);
-    const currentMax = parseInt(match[2],10);
-    const rowsPerPage = currentMax - currentMin + 1;
-
-    const pageInput = parseInt($('#' + staticId + '_pageJump').val(),10);
-    if(isNaN(pageInput) || pageInput < 1){
-      apex.message.showErrors([{type:"error",message:"Enter valid page number"}]);
+    // extract visible range like "176 - 200"
+    const match = labelText.match(/(\d+)\s*-\s*(\d+)/);
+    if(!match) {
+      apex.message.showErrors([{type:"error",message:"Pagination info not found"}]);
       return;
     }
 
-    const newMin = (pageInput - 1) * rowsPerPage + 1;
+    const min = parseInt(match[1],10);
+    const max = parseInt(match[2],10);
+    const rowsPerPage = max - min + 1;
 
-    // Call native APEX worksheet paginate API
+    const pageNum = parseInt($('#' + staticId + '_pageInput').val(),10);
+    if(isNaN(pageNum) || pageNum < 1){
+      apex.message.showErrors([{type:"error",message:"Enter a valid page number"}]);
+      return;
+    }
+
+    const newMinRow = (pageNum - 1) * rowsPerPage + 1;
+
+    // Try the APEX pagination API
     try {
-      widget.worksheet('paginate', { p_pg_min_row: newMin });
+      const reg = apex.region(staticId);
+      reg.widget().worksheet('paginate', { p_pg_min_row: newMinRow });
     } catch(e){
-      console.warn('APEX paginate fallback', e);
-      // fallback click next multiple times (only if paginate not found)
+      console.warn('Fallback pagination logic in use', e);
+      // fallback: click "Next" multiple times
       const $next = $pagination.find('button[title="Next"]');
       const $prev = $pagination.find('button[title="Previous"]');
-      if($next.length && pageInput > 1){
-        for(let i=1;i<pageInput;i++){
-          $next.get(0).click();
-        }
-      } else if(pageInput === 1 && $prev.length){
-        // jump to first page
-        location.reload();
+
+      // Go back to first if necessary
+      if(pageNum === 1 && $prev.length){
+        while($prev.length) $prev.get(0).click();
+        return;
+      }
+
+      // Simulate next clicks
+      for(let i=1; i<pageNum; i++){
+        $next.get(0).click();
       }
     }
   }
-
 })(apex.jQuery);
