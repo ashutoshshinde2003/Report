@@ -60,3 +60,21 @@ $(document).on("click", "#pageGo", function() {
 $(document).on("keypress", "#pageJump", function(e) {
   if (e.which === 13) $("#pageGo").click();
 });
+
+
+
+
+
+
+
+(function($){
+  function tagIR(staticId, tag){
+    // Add marker classes to toolbar/report if they exist
+    $('#' + staticId + '_toolbar').addClass(tag + '-toolbar');
+    $('#' + staticId + '_report').addClass(tag + '-report');
+  }
+  $(function(){
+    tagIR('VALID_RECORDS','valid');
+    tagIR('INVALID_RECORDS','invalid');
+  });
+})(apex.jQuery);
