@@ -269,3 +269,41 @@ SELECT COUNT(DISTINCT pts_res_group_id) as cnt
 from apex_mod.eres_bulk_res_upload_detail
 where job_id = :P24_JOB_ID
 AND row_status = 'VALID';
+
+
+
+
+
+
+
+
+SELECT 
+    -- Conditional Job ID (link or plain text)
+    CASE 
+      WHEN job_status IN ('CANCELLED') THEN 
+        -- show plain job_id if cancelled/successful
+        TO_CHAR(job_id)
+      WHEN job_status IN ('SUCCESSFUL')  THEN
+       '<a href="f?p=&APP_ID.:24:&SESSION.::NO::P24_JOB_ID:'||job_id||'" '||
+        'class="t-Button t-Button--link">'||job_id||'</a>'
+      ELSE
+        -- clickable link to preview page (replace 22 with your preview page number)
+        '<a href="f?p=&APP_ID.:23:&SESSION.::NO::P23_JOB_ID:'||job_id||'" '||
+        'class="t-Button t-Button--link">'||job_id||'</a>'
+    END AS job_id_link,
+
+    created_by,
+    created_dt,
+    job_status,
+
+    -- Cancel button logic
+    CASE 
+      WHEN job_status IN ('SUCCESSFUL','CANCELLED','FAILED') THEN
+        '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+      ELSE
+        '<button class="t-Button t-Button--danger t-Button--small cancel-row" '||
+        'data-jobid="'||job_id||'">Cancel</button>'
+    END AS cancel_button
+
+FROM apex_mod.eres_bulk_res_upload_smry
+ORDER BY job_id DESC;
