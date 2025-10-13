@@ -307,3 +307,40 @@ SELECT
 
 FROM apex_mod.eres_bulk_res_upload_smry
 ORDER BY job_id DESC;
+
+
+
+
+
+
+
+
+
+SELECT 
+    CASE 
+      WHEN job_status IN ('CANCELLED') THEN 
+        TO_CHAR(job_id)
+        
+      WHEN job_status IN ('SUCCESSFUL') THEN
+        '<a href="f?p=&APP_ID.:24:&SESSION.::NO::P24_JOB_ID,P24_STATUS:'||job_id||','||job_status||'" '||
+        'class="t-Button t-Button--link">'||job_id||'</a>'
+        
+      ELSE
+        '<a href="f?p=&APP_ID.:23:&SESSION.::NO::P23_JOB_ID,P23_STATUS:'||job_id||','||job_status||'" '||
+        'class="t-Button t-Button--link">'||job_id||'</a>'
+    END AS job_id_link,
+
+    created_by,
+    created_dt,
+    job_status,
+
+    CASE 
+      WHEN job_status IN ('SUCCESSFUL','CANCELLED','FAILED') THEN
+        '<button class="t-Button t-Button--danger t-Button--small" disabled>Cancel</button>'
+      ELSE
+        '<button class="t-Button t-Button--danger t-Button--small cancel-row" '||
+        'data-jobid="'||job_id||'">Cancel</button>'
+    END AS cancel_button
+
+FROM apex_mod.eres_bulk_res_upload_smry
+ORDER BY job_id DESC;
