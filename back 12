@@ -44,3 +44,64 @@ Insert into FSAM_MASTER.BANK_HOLIDAYS
  Values
    (TO_DATE('12/25/2027', 'MM/DD/YYYY'), 'Chirstmas Day (Observed)'); 
 COMMIT;
+
+
+
+
+
+
+--US/Domestic
+SET DEFINE OFF;
+EXEC FSAM_MASTER.fill_work_of_dt('01-APR-2026','31-MAR-2027');
+
+COMMIT;
+
+CREATE OR REPLACE Procedure FSAM_MASTER.fill_work_of_dt (StartDtIn IN DATE,EndDtIn IN DATE)
+AS
+-- ****MUST FILL BANK HOLIDAYS FOR THE YEAR AND THE NEXT YEAR SO WE SEE
+-- JAN 1st as a holiday for the last day of dec...***
+-- This will insert or update the fsam_master.work_of_dt.
+-- It will start with the start date, increment by one till
+-- we reach the end date, and determin the settlement date as we go.
+-- This will be done by adding one business day to each work_of_dt.
+-- A business day is not a weekend, or a bank holiday. To do this
+-- first find out if the work_of_dt + 1 is a holiday, if it is, + 1,
+-- if not check for a weekend. If it is a weekend, move to monday, check
+-- that this is not a holiday, if all is ok ,insert, or update, if not
+-- repeat the above logic till a valid date is found...
+	ThisWod		Date;
+	EndDt		Date;
+	TheStlDt	Date;
+	CheckCnt	Number;
+	ReCheck		Boolean;
+Begin
+  --ThisWod:= StartDtIn;
+  --While ThisWod <= EndDtIn Loop
+  ThisWod:= to_date(StartDtIn,'DD-MON-RR');
+  EndDt:= to_date(EndDtIn,'DD-MON-RR');
+  While ThisWod <= EndDt Loop
+	add_business_days(ThisWod,1,TheStlDt);
+	begin
+		Insert into fsam_master.work_of_dt
+			(work_of_dt, settlement_dt)
+		values
+			(to_char(to_date(ThisWod,'DD-MON-RR'),'YYYYMMDD'),
+			to_char(to_date(TheStlDt,'DD-MON-RR'),'YYYYMMDD'));
+	exception
+		When DUP_VAL_ON_INDEX Then
+			update fsam_master.work_of_dt
+			set settlement_dt = to_char(to_date(TheStlDt,'DD-MON-RR'),'YYYYMMDD')
+			Where work_of_dt = to_char(to_date(ThisWod,'DD-MON-RR'),'YYYYMMDD');
+	end;
+	Commit;
+	ThisWod:= ThisWod + 1;
+  End Loop;
+End;
+ 
+/
+
+
+
+
+
+
