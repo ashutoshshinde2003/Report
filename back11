@@ -49,3 +49,28 @@ WHERE PLAT_ID = 'L'
   AND HOLIDAY_NAME = 'Boxing Day (substitute day)';
 
 COMMIT;
+
+
+
+
+
+
+
+
+SET DEFINE OFF;
+
+DELETE FROM FSAM_MASTER.BANK_HOLIDAYS
+WHERE PLAT_ID = 'L'
+  AND COUNTRY_CD = 'UK'
+  AND (HOLIDAY_DT, HOLIDAY_NAME) IN (
+    (TO_DATE('1/1/2027', 'MM/DD/YYYY'), 'New Year''s Day'),
+    (TO_DATE('3/26/2027', 'MM/DD/YYYY'), 'Good Friday'),
+    (TO_DATE('3/29/2027', 'MM/DD/YYYY'), 'Easter Monday'),
+    (TO_DATE('5/3/2027', 'MM/DD/YYYY'), 'Early May Bank Holiday'),
+    (TO_DATE('5/31/2027', 'MM/DD/YYYY'), 'Spring Bank Holiday'),
+    (TO_DATE('8/30/2027', 'MM/DD/YYYY'), 'Summer Bank Holiday'),
+    (TO_DATE('12/27/2027', 'MM/DD/YYYY'), 'Christmas Day'),
+    (TO_DATE('12/28/2027', 'MM/DD/YYYY'), 'Boxing Day (substitute day)')
+  );
+
+COMMIT;
