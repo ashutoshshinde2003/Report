@@ -1,0 +1,46 @@
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('1/1/2027', 'MM/DD/YYYY'), 'New Year''s Day (Observed)');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('1/18/2027', 'MM/DD/YYYY'), 'Martin Luther King, Jr. Day');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('2/15/2027', 'MM/DD/YYYY'), 'President''s Day');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('5/31/2027', 'MM/DD/YYYY'), 'Memorial Day');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('6/19/2027', 'MM/DD/YYYY'), 'Juneteenth (Observed)');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('7/4/2027', 'MM/DD/YYYY'), 'Independence Day ');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('9/6/2027', 'MM/DD/YYYY'), 'Labor Day');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('10/11/2027', 'MM/DD/YYYY'), 'Columbus Day');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('11/11/2027', 'MM/DD/YYYY'), 'Veterans Day');
+
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('11/25/2027', 'MM/DD/YYYY'), 'Thanksgiving Day');
+Insert into FSAM_MASTER.BANK_HOLIDAYS
+   (HOLIDAY_DT, HOLIDAY_NAME)
+ Values
+   (TO_DATE('12/25/2027', 'MM/DD/YYYY'), 'Chirstmas Day (Observed)'); 
+COMMIT;
