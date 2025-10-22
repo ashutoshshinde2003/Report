@@ -1,27 +1,113 @@
 DECLARE
-    l_blob        BLOB;
-    l_file_name   VARCHAR2(255);
-    l_err_msg     VARCHAR2(4000);
-    l_job_id      NUMBER;
-    l_seq_no      NUMBER := 0;
-    l_success     BOOLEAN := TRUE;
-    l_status      VARCHAR2(20);
-    l_row_count   NUMBER := 0;
-    l_actual_rows NUMBER := 0;
-    l_clob        CLOB;
+    l_blob         BLOB;
+    l_file_name    VARCHAR2(255);
+    l_err_msg      VARCHAR2(4000);
+    l_job_id       NUMBER;
+    l_seq_no       NUMBER := 0;
+    l_success      BOOLEAN := TRUE;
+    l_status       VARCHAR2(20);
+    l_row_count    NUMBER := 0;         -- number of rows actually inserted from parser
+    l_parsed_rows  NUMBER := 0;         -- parsed rows by apex_data_parser
+    l_total_lines  NUMBER := 0;         -- total lines counted from raw file (best-effort)
+    l_missing_rows NUMBER := 0;         -- computed missing = total_lines - parsed_rows
+    l_file_ext     VARCHAR2(20);
+
+    /* variables for chunked blob->clob reading */
+    l_blob_len     INTEGER;
+    l_pos          INTEGER := 1;
+    l_chunk_size   PLS_INTEGER := 32767;
+    l_amt          PLS_INTEGER;
+    l_raw          RAW(32767);
+    l_piece_vc     VARCHAR2(32767);
+    l_accum_clob   CLOB;
 BEGIN
-    -- 1. Get latest uploaded file
+    -- 1. Get latest uploaded file from APEX temp files
     SELECT blob_content, filename
       INTO l_blob, l_file_name
       FROM (
-          SELECT blob_content, filename
-            FROM apex_application_temp_files
-           WHERE application_id = :APP_ID
-           ORDER BY created_on DESC
+        SELECT blob_content, filename
+          FROM apex_application_temp_files
+         WHERE application_id = :APP_ID
+         ORDER BY created_on DESC
       )
      WHERE ROWNUM = 1;
 
-    -- 2. Generate job_id
+    -- determine extension (simple)
+    l_file_ext := LOWER(NVL(SUBSTR(l_file_name, INSTR(l_file_name, '.', -1) + 1), ''));
+
+    -- 1a. Try to compute total lines in file (best-effort)
+    BEGIN
+        l_blob_len := DBMS_LOB.getlength(l_blob);
+        DBMS_LOB.CREATETEMPORARY(l_accum_clob, TRUE);
+
+        WHILE l_pos <= l_blob_len LOOP
+            l_amt := LEAST(l_chunk_size, l_blob_len - l_pos + 1);
+            DBMS_LOB.READ(l_blob, l_amt, l_pos, l_raw);
+
+            BEGIN
+                l_piece_vc := UTL_RAW.CAST_TO_VARCHAR2(l_raw);
+            EXCEPTION
+                WHEN OTHERS THEN
+                    -- if conversion fails for a chunk, stop trying (we'll fallback)
+                    l_piece_vc := NULL;
+                    EXIT;
+            END;
+
+            IF l_piece_vc IS NOT NULL THEN
+                DBMS_LOB.APPEND(l_accum_clob, l_piece_vc);
+                l_pos := l_pos + LENGTH(l_piece_vc);
+            ELSE
+                -- can't convert further reliably
+                EXIT;
+            END IF;
+        END LOOP;
+
+        IF DBMS_LOB.GETLENGTH(l_accum_clob) > 0 THEN
+            -- normalize CRLF to LF and count LF occurrences
+            DECLARE
+                l_text CLOB := REPLACE(l_accum_clob, CHR(13)||CHR(10), CHR(10));
+                l_len  INTEGER := DBMS_LOB.GETLENGTH(l_text);
+                l_last_char VARCHAR2(1);
+                l_lf_count INTEGER := 0;
+            BEGIN
+                -- count LF
+                l_lf_count := REGEXP_COUNT(l_text, CHR(10));
+                IF l_lf_count = 0 THEN
+                    IF l_len = 0 THEN
+                        l_total_lines := 0;
+                    ELSE
+                        l_total_lines := 1;
+                    END IF;
+                ELSE
+                    -- if last char is LF then total lines = lf_count (lines terminated)
+                    l_last_char := DBMS_LOB.SUBSTR(l_text, 1, GREATEST(1, l_len));
+                    IF l_last_char = CHR(10) THEN
+                        l_total_lines := l_lf_count; -- last line ended by newline
+                    ELSE
+                        l_total_lines := l_lf_count + 1;
+                    END IF;
+                END IF;
+            END;
+        ELSE
+            l_total_lines := 0;
+        END IF;
+
+        IF DBMS_LOB.ISTEMPORARY(l_accum_clob) = 1 THEN
+            DBMS_LOB.FREETEMPORARY(l_accum_clob);
+        END IF;
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            -- if anything fails, fallback to zero (we will use parsed rows only)
+            l_total_lines := 0;
+            BEGIN
+                IF DBMS_LOB.ISTEMPORARY(l_accum_clob) = 1 THEN
+                    DBMS_LOB.FREETEMPORARY(l_accum_clob);
+                END IF;
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+    END;
+
+    -- 2. Generate JOB_ID from your sequence
     SELECT bulk_resolution_seq.NEXTVAL INTO l_job_id FROM dual;
 
     -- 3. Insert header record
@@ -31,25 +117,16 @@ BEGIN
         l_job_id, :APP_USER, SYSDATE, 'PENDING'
     );
 
-    -- ✅ 3a. Detect total rows (including blank ones)
-    BEGIN
-        l_clob := UTL_RAW.cast_to_varchar2(DBMS_LOB.substr(l_blob, 32767, 1));
-        l_actual_rows := REGEXP_COUNT(l_clob, CHR(10)) + 1;
-    EXCEPTION
-        WHEN OTHERS THEN
-            l_actual_rows := 0;
-    END;
-
-    -- 4. Parse actual rows (non-blank only)
+    -- 4. Parse and insert rows (unchanged classification logic)
     FOR rec IN (
         SELECT col001 AS pts_res_group_id
           FROM TABLE(
-              apex_data_parser.parse(
-                  p_content   => l_blob,
-                  p_file_name => l_file_name,
-                  p_skip_rows => 1,
-                  p_nullif    => ' '
-              )
+            apex_data_parser.parse(
+                p_content   => l_blob,
+                p_file_name => l_file_name,
+                p_skip_rows => 1
+                -- keep same parameters you had (do not add unsupported ones)
+            )
           )
     )
     LOOP
@@ -57,27 +134,42 @@ BEGIN
         l_row_count := l_row_count + 1;
 
         BEGIN
-            IF rec.pts_res_group_id IS NULL OR TRIM(rec.pts_res_group_id) IS NULL THEN
-                INSERT INTO eres_bulk_res_upload_detail (
-                    job_id, seq_no, pts_res_group_id, row_status, status
-                ) VALUES (
-                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Blank / Missing value'
-                );
-                l_success := FALSE;
-            ELSIF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') THEN
-                INSERT INTO eres_bulk_res_upload_detail (
-                    job_id, seq_no, pts_res_group_id, row_status, status
-                ) VALUES (
-                    l_job_id, l_seq_no, rec.pts_res_group_id, 'VALID', NULL
-                );
-            ELSE
-                INSERT INTO eres_bulk_res_upload_detail (
-                    job_id, seq_no, pts_res_group_id, row_status, status
-                ) VALUES (
-                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Non-numeric / bad format'
-                );
-                l_success := FALSE;
-            END IF;
+            -- robust normalization for invisible whitespace
+            DECLARE
+                l_val VARCHAR2(4000) := rec.pts_res_group_id;
+            BEGIN
+                IF l_val IS NOT NULL THEN
+                    l_val := REPLACE(l_val, CHR(160), ' '); -- NBSP
+                    l_val := REPLACE(l_val, CHR(9), ' ');   -- tab
+                    l_val := REPLACE(l_val, CHR(10), ' ');  -- LF
+                    l_val := REPLACE(l_val, CHR(13), ' ');  -- CR
+                    l_val := TRIM(REGEXP_REPLACE(l_val, '[[:space:]]+', ' '));
+                END IF;
+
+                IF l_val IS NULL OR LENGTH(l_val) = 0 THEN
+                    INSERT INTO eres_bulk_res_upload_detail (
+                        job_id, seq_no, pts_res_group_id, row_status, status
+                    ) VALUES (
+                        l_job_id, l_seq_no, NULL, 'INVALID', 'Blank / Missing value'
+                    );
+                    l_success := FALSE;
+
+                ELSIF REGEXP_LIKE(l_val, '^\d+$') THEN
+                    INSERT INTO eres_bulk_res_upload_detail (
+                        job_id, seq_no, pts_res_group_id, row_status, status
+                    ) VALUES (
+                        l_job_id, l_seq_no, l_val, 'VALID', NULL
+                    );
+                ELSE
+                    INSERT INTO eres_bulk_res_upload_detail (
+                        job_id, seq_no, pts_res_group_id, row_status, status
+                    ) VALUES (
+                        l_job_id, l_seq_no, l_val, 'INVALID', 'Non-numeric / bad format'
+                    );
+                    l_success := FALSE;
+                END IF;
+
+            END;
         EXCEPTION
             WHEN OTHERS THEN
                 l_success := FALSE;
@@ -86,11 +178,32 @@ BEGIN
         END;
     END LOOP;
 
-    -- 5. Delete temp file
+    l_parsed_rows := l_row_count;
+
+    -- 5. If we counted total lines and parsed_rows < total_lines, insert placeholders
+    IF l_total_lines > 0 AND l_parsed_rows < l_total_lines THEN
+        l_missing_rows := l_total_lines - l_parsed_rows;
+        DBMS_OUTPUT.PUT_LINE('Detected '||l_missing_rows||' missing blank row(s). Inserting placeholders.');
+
+        FOR i IN 1 .. l_missing_rows LOOP
+            l_seq_no := l_seq_no + 1;
+            -- insert placeholder INVALID for each missing line
+            INSERT INTO eres_bulk_res_upload_detail (
+                job_id, seq_no, pts_res_group_id, row_status, status
+            ) VALUES (
+                l_job_id, l_seq_no, NULL, 'INVALID', 'Blank / Missing value (placeholder)'
+            );
+            -- increment counters
+            l_row_count := l_row_count + 1;
+            l_success := FALSE;
+        END LOOP;
+    END IF;
+
+    -- 6. Cleanup temp file
     DELETE FROM apex_application_temp_files
      WHERE filename = l_file_name;
 
-    -- 6. Update summary
+    -- 7. Update header status (unchanged behavior)
     IF l_success THEN
         l_status := 'SCHEDULED';
     ELSE
@@ -103,24 +216,17 @@ BEGIN
 
     COMMIT;
 
-    -- 7. Pass info to APEX
+    -- 8. Set page items (preserve original assignments)
     :P21_NEW_1_JOBID := l_job_id;
     :JOB_ID := :P21_NEW_1_JOBID;
+    :TOTAL_ROW_COUNT := l_row_count;   -- now includes placeholders if any
+    :TOTAL_COUNT := l_row_count;
 
-    -- ✅ Show both totals (actual vs parsed)
-    :TOTAL_ROW_COUNT := l_row_count;
-    :TOTAL_COUNT := CASE 
-                      WHEN l_actual_rows > 0 
-                      THEN l_actual_rows 
-                      ELSE l_row_count 
-                    END;
-
-    DBMS_OUTPUT.PUT_LINE('Parsed rows: ' || l_row_count || ', Total (including blanks): ' || :TOTAL_COUNT);
+    DBMS_OUTPUT.PUT_LINE('Job '||l_job_id||' completed. Parsed rows='||l_parsed_rows||' Total rows reported='||l_row_count);
 
 EXCEPTION
     WHEN OTHERS THEN
         l_err_msg := SQLERRM;
-        DBMS_OUTPUT.PUT_LINE('Fatal error: ' || l_err_msg);
+        DBMS_OUTPUT.PUT_LINE('Fatal error: '||l_err_msg);
         ROLLBACK;
 END;
-/
