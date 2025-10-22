@@ -1,7 +1,7 @@
 DECLARE
-    v_job_id NUMBER := :P22_NEW_JOB_ID; -- your job ID page item
+    v_job_id NUMBER := :P22_NEW_JOB_ID; -- your page item holding job_id
 BEGIN
-    -- Update detail table with values from PTS_CASE for VALID numeric entries
+    -- 1. Update detail table with values from pts_case for VALID numeric entries
     MERGE INTO apex_mod.eres_bulk_res_upload_detail d
     USING (
         SELECT 
@@ -22,7 +22,6 @@ BEGIN
     ON (
         TO_NUMBER(d.pts_res_group_id) = pts.pts_res_group_id
         AND d.job_id = v_job_id
-        AND REGEXP_LIKE(d.pts_res_group_id, '^\d+$')
     )
     WHEN MATCHED THEN
         UPDATE SET
@@ -33,11 +32,9 @@ BEGIN
             d.susp_reas_cd   = pts.susp_reas_cd,
             d.work_of_dt     = pts.work_of_dt,
             d.case_status_id = pts.case_status_id,
-            d.status         = pts.status
-    WHEN NOT MATCHED THEN
-        NULL;
+            d.status         = pts.status;
 
-    -- For all others, mark INVALID and clear details
+    -- 2. Mark INVALID rows (non-numeric or unmatched)
     UPDATE apex_mod.eres_bulk_res_upload_detail d
        SET row_status     = 'INVALID',
            mer_num        = NULL,
@@ -48,14 +45,17 @@ BEGIN
            case_status_id = NULL,
            status         = 'Invalid Record'
      WHERE d.job_id = v_job_id
-       AND (NOT REGEXP_LIKE(d.pts_res_group_id, '^\d+$')
+       AND (
+            NOT REGEXP_LIKE(d.pts_res_group_id, '^\d+$')
             OR NOT EXISTS (
-                SELECT 1 FROM eresuser_owner.pts_case p
+                SELECT 1
+                  FROM eresuser_owner.pts_case p
                  WHERE p.pts_res_group_id = TO_NUMBER(d.pts_res_group_id)
-            ));
+            )
+       );
 
     COMMIT;
 
-    DBMS_OUTPUT.PUT_LINE('Detail table updated successfully for job ID ' || v_job_id);
+    DBMS_OUTPUT.PUT_LINE('✅ Detail table updated successfully for job ID ' || v_job_id);
 END;
 /
