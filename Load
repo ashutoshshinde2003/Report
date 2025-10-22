@@ -1,61 +1,132 @@
 DECLARE
-    v_job_id NUMBER := :P22_NEW_JOB_ID; -- your page item holding job_id
-BEGIN
-    -- 1. Update detail table with values from pts_case for VALID numeric entries
-    MERGE INTO apex_mod.eres_bulk_res_upload_detail d
-    USING (
-        SELECT 
-            TO_CHAR(p.pts_res_group_id) AS pts_res_group_id,
-            p.mer_num,
-            p.us_currency_amt,
-            p.trn_dt,
-            p.susp_reas_cd,
-            p.work_of_dt,
-            p.case_status_id,
-            CASE 
-                WHEN p.case_status_id = 20 THEN 'Already Closed'
-                WHEN p.case_status_id = 10 THEN 'Resolution Pending'
-                ELSE 'Scheduled'
-            END AS status
-        FROM eresuser_owner.pts_case p
-    ) pts
-    ON (
-        TO_NUMBER(d.pts_res_group_id) = pts.pts_res_group_id
-        AND d.job_id = v_job_id
-    )
-    WHEN MATCHED THEN
-        UPDATE SET
-            d.row_status     = 'VALID',
-            d.mer_num        = pts.mer_num,
-            d.us_currency_amt= pts.us_currency_amt,
-            d.trn_dt         = pts.trn_dt,
-            d.susp_reas_cd   = pts.susp_reas_cd,
-            d.work_of_dt     = pts.work_of_dt,
-            d.case_status_id = pts.case_status_id,
-            d.status         = pts.status;
+    v_job_id        NUMBER := :P22_NEW_JOB_ID; -- Page item holding JOB_ID
 
-    -- 2. Mark INVALID rows (non-numeric or unmatched)
-    UPDATE apex_mod.eres_bulk_res_upload_detail d
-       SET row_status     = 'INVALID',
-           mer_num        = NULL,
-           us_currency_amt= NULL,
-           trn_dt         = NULL,
-           susp_reas_cd   = NULL,
-           work_of_dt     = NULL,
-           case_status_id = NULL,
-           status         = 'Invalid Record'
-     WHERE d.job_id = v_job_id
-       AND (
-            NOT REGEXP_LIKE(d.pts_res_group_id, '^\d+$')
-            OR NOT EXISTS (
-                SELECT 1
-                  FROM eresuser_owner.pts_case p
-                 WHERE p.pts_res_group_id = TO_NUMBER(d.pts_res_group_id)
-            )
-       );
+    -- Cursor to fetch all rows for this job
+    CURSOR c_details IS
+        SELECT d.rowid AS rid,
+               TRIM(d.pts_res_group_id) AS pts_res_group_id
+          FROM apex_mod.eres_bulk_res_upload_detail d
+         WHERE d.job_id = v_job_id;
+
+    -- Collections for fetched data
+    TYPE t_rowid_tab IS TABLE OF ROWID INDEX BY PLS_INTEGER;
+    TYPE t_group_tab IS TABLE OF VARCHAR2(100) INDEX BY PLS_INTEGER;
+    l_rids      t_rowid_tab;
+    l_grp_ids   t_group_tab;
+
+    -- Collections for valid/invalid pts_res_group_id
+    TYPE t_valid_tab IS TABLE OF VARCHAR2(100) INDEX BY PLS_INTEGER;
+    TYPE t_invalid_tab IS TABLE OF VARCHAR2(100) INDEX BY PLS_INTEGER;
+    l_valid_ids   t_valid_tab;
+    l_invalid_ids t_invalid_tab;
+
+    -- Record type for data from PTS_CASE
+    TYPE t_case_rec IS RECORD (
+        mer_num         VARCHAR2(50),
+        us_currency_amt NUMBER,
+        trn_dt          DATE,
+        susp_reas_cd    NUMBER,
+        work_of_dt      DATE,
+        case_status_id  NUMBER
+    );
+
+    TYPE t_case_map IS TABLE OF t_case_rec INDEX BY VARCHAR2(100);
+    l_case_data t_case_map;
+
+    -- Counters
+    v_valid_count   NUMBER := 0;
+    v_invalid_count NUMBER := 0;
+
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('--- Starting update for JOB_ID: ' || v_job_id || ' ---');
+
+    OPEN c_details;
+    LOOP
+        FETCH c_details BULK COLLECT INTO l_rids, l_grp_ids LIMIT 1000;
+        EXIT WHEN l_grp_ids.COUNT = 0;
+
+        FOR i IN 1 .. l_grp_ids.COUNT LOOP
+            DECLARE
+                v_id VARCHAR2(100) := TRIM(l_grp_ids(i));
+                v_case t_case_rec;
+            BEGIN
+                -- Handle NULLs and blanks
+                IF v_id IS NULL OR LENGTH(v_id) = 0 THEN
+                    l_invalid_ids(i) := v_id;
+                    v_invalid_count := v_invalid_count + 1;
+
+                ELSIF REGEXP_LIKE(v_id, '^\d+$') THEN
+                    BEGIN
+                        -- Fetch case data only if numeric and exists
+                        SELECT 
+                            p.mer_num,
+                            p.us_currency_amt,
+                            p.trn_dt,
+                            p.susp_reas_cd,
+                            p.work_of_dt,
+                            p.case_status_id
+                          INTO v_case
+                          FROM eresuser_owner.pts_case p
+                         WHERE p.pts_res_group_id = TO_NUMBER(v_id)
+                           AND ROWNUM = 1;
+
+                        -- Store valid record
+                        l_case_data(v_id) := v_case;
+                        l_valid_ids(i) := v_id;
+                        v_valid_count := v_valid_count + 1;
+
+                    EXCEPTION
+                        WHEN NO_DATA_FOUND THEN
+                            -- Numeric but not found
+                            l_invalid_ids(i) := v_id;
+                            v_invalid_count := v_invalid_count + 1;
+                    END;
+                ELSE
+                    -- Non-numeric ID
+                    l_invalid_ids(i) := v_id;
+                    v_invalid_count := v_invalid_count + 1;
+                END IF;
+            END;
+        END LOOP;
+    END LOOP;
+    CLOSE c_details;
+
+    -- === Bulk update VALID records ===
+    FORALL i IN INDICES OF l_valid_ids
+        UPDATE apex_mod.eres_bulk_res_upload_detail d
+           SET d.row_status     = 'VALID',
+               d.mer_num        = l_case_data(l_valid_ids(i)).mer_num,
+               d.us_currency_amt= l_case_data(l_valid_ids(i)).us_currency_amt,
+               d.trn_dt         = l_case_data(l_valid_ids(i)).trn_dt,
+               d.susp_reas_cd   = l_case_data(l_valid_ids(i)).susp_reas_cd,
+               d.work_of_dt     = l_case_data(l_valid_ids(i)).work_of_dt,
+               d.case_status_id = l_case_data(l_valid_ids(i)).case_status_id
+         WHERE d.job_id = v_job_id
+           AND d.pts_res_group_id = l_valid_ids(i);
+
+    -- === Bulk update INVALID records ===
+    FORALL i IN INDICES OF l_invalid_ids
+        UPDATE apex_mod.eres_bulk_res_upload_detail d
+           SET d.row_status     = 'INVALID',
+               d.mer_num        = NULL,
+               d.us_currency_amt= NULL,
+               d.trn_dt         = NULL,
+               d.susp_reas_cd   = NULL,
+               d.work_of_dt     = NULL,
+               d.case_status_id = NULL
+         WHERE d.job_id = v_job_id
+           AND d.pts_res_group_id = l_invalid_ids(i);
 
     COMMIT;
 
-    DBMS_OUTPUT.PUT_LINE('✅ Detail table updated successfully for job ID ' || v_job_id);
+    DBMS_OUTPUT.PUT_LINE('✅ Update completed successfully.');
+    DBMS_OUTPUT.PUT_LINE('  → VALID records updated: ' || v_valid_count);
+    DBMS_OUTPUT.PUT_LINE('  → INVALID records updated: ' || v_invalid_count);
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------');
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('❌ Error occurred: ' || SQLERRM);
+        ROLLBACK;
 END;
 /
