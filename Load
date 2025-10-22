@@ -33,9 +33,23 @@ DECLARE
     l_valid_ids   t_valid_tab;
     l_invalid_ids t_invalid_tab;
 
+    -- Parallel arrays for FORALL update
+    TYPE t_mernum_tab IS TABLE OF VARCHAR2(50) INDEX BY PLS_INTEGER;
+    TYPE t_amt_tab    IS TABLE OF NUMBER INDEX BY PLS_INTEGER;
+    TYPE t_date_tab   IS TABLE OF DATE INDEX BY PLS_INTEGER;
+    TYPE t_cd_tab     IS TABLE OF NUMBER INDEX BY PLS_INTEGER;
+
+    l_mernum_tab     t_mernum_tab;
+    l_amt_tab        t_amt_tab;
+    l_trndt_tab      t_date_tab;
+    l_susp_tab       t_cd_tab;
+    l_work_tab       t_date_tab;
+    l_status_tab     t_cd_tab;
+
     -- Counters
     v_valid_count   NUMBER := 0;
     v_invalid_count NUMBER := 0;
+
 BEGIN
     DBMS_OUTPUT.PUT_LINE('--- Job processing started for Job ID ' || v_job_id || ' ---');
 
@@ -50,15 +64,15 @@ BEGIN
                 v_id VARCHAR2(100) := TRIM(l_ids(i));
                 v_case t_case_rec;
             BEGIN
-                -- Check for NULL or blank values
+                -- Handle NULL or blank
                 IF v_id IS NULL OR v_id = '' THEN
                     l_invalid_ids(i) := v_id;
                     v_invalid_count := v_invalid_count + 1;
 
-                -- Check for numeric only
+                -- Handle numeric group IDs
                 ELSIF REGEXP_LIKE(v_id, '^\d+$') THEN
                     BEGIN
-                        -- Try fetching case details for this ID
+                        -- Try fetching case details
                         SELECT p.mer_num,
                                p.us_currency_amt,
                                p.trn_dt,
@@ -68,22 +82,21 @@ BEGIN
                           INTO v_case
                           FROM eresuser_owner.pts_case p
                          WHERE p.pts_res_group_id = TO_NUMBER(v_id)
-                         AND ROWNUM = 1;
+                           AND ROWNUM = 1;
 
-                        -- Found valid entry
+                        -- Found valid record — store data in memory
                         l_case_map(v_id) := v_case;
                         l_valid_ids(i) := v_id;
                         v_valid_count := v_valid_count + 1;
 
                     EXCEPTION
                         WHEN NO_DATA_FOUND THEN
-                            -- Numeric but no matching record
                             l_invalid_ids(i) := v_id;
                             v_invalid_count := v_invalid_count + 1;
                     END;
 
                 ELSE
-                    -- Non-numeric
+                    -- Non-numeric = invalid
                     l_invalid_ids(i) := v_id;
                     v_invalid_count := v_invalid_count + 1;
                 END IF;
@@ -92,35 +105,50 @@ BEGIN
     END LOOP;
     CLOSE c_details;
 
-    -- 2️⃣ Bulk update VALID records (populate fields)
-    FORALL i IN INDICES OF l_valid_ids
-        UPDATE apex_mod.eres_bulk_res_upload_detail d
-           SET d.row_status     = 'VALID',
-               d.mer_num        = l_case_map(l_valid_ids(i)).mer_num,
-               d.us_currency_amt= l_case_map(l_valid_ids(i)).us_currency_amt,
-               d.trn_dt         = l_case_map(l_valid_ids(i)).trn_dt,
-               d.susp_reas_cd   = l_case_map(l_valid_ids(i)).susp_reas_cd,
-               d.work_of_dt     = l_case_map(l_valid_ids(i)).work_of_dt,
-               d.case_status_id = l_case_map(l_valid_ids(i)).case_status_id
-         WHERE d.job_id = v_job_id
-           AND d.pts_res_group_id = l_valid_ids(i);
+    -- 2️⃣ Prepare parallel arrays for bulk update
+    IF l_valid_ids.COUNT > 0 THEN
+        FOR i IN 1 .. l_valid_ids.COUNT LOOP
+            l_mernum_tab(i)   := l_case_map(l_valid_ids(i)).mer_num;
+            l_amt_tab(i)      := l_case_map(l_valid_ids(i)).us_currency_amt;
+            l_trndt_tab(i)    := l_case_map(l_valid_ids(i)).trn_dt;
+            l_susp_tab(i)     := l_case_map(l_valid_ids(i)).susp_reas_cd;
+            l_work_tab(i)     := l_case_map(l_valid_ids(i)).work_of_dt;
+            l_status_tab(i)   := l_case_map(l_valid_ids(i)).case_status_id;
+        END LOOP;
 
-    -- 3️⃣ Bulk update INVALID records (clear all columns)
-    FORALL i IN INDICES OF l_invalid_ids
-        UPDATE apex_mod.eres_bulk_res_upload_detail d
-           SET d.row_status     = 'INVALID',
-               d.mer_num        = NULL,
-               d.us_currency_amt= NULL,
-               d.trn_dt         = NULL,
-               d.susp_reas_cd   = NULL,
-               d.work_of_dt     = NULL,
-               d.case_status_id = NULL
-         WHERE d.job_id = v_job_id
-           AND (d.pts_res_group_id = l_invalid_ids(i) OR d.pts_res_group_id IS NULL);
+        -- ✅ Bulk update VALID records
+        FORALL i IN INDICES OF l_valid_ids
+            UPDATE apex_mod.eres_bulk_res_upload_detail d
+               SET d.row_status     = 'VALID',
+                   d.mer_num        = l_mernum_tab(i),
+                   d.us_currency_amt= l_amt_tab(i),
+                   d.trn_dt         = l_trndt_tab(i),
+                   d.susp_reas_cd   = l_susp_tab(i),
+                   d.work_of_dt     = l_work_tab(i),
+                   d.case_status_id = l_status_tab(i)
+             WHERE d.job_id = v_job_id
+               AND d.pts_res_group_id = l_valid_ids(i);
+    END IF;
+
+    -- 3️⃣ Bulk update INVALID records (clear everything)
+    IF l_invalid_ids.COUNT > 0 THEN
+        FORALL i IN INDICES OF l_invalid_ids
+            UPDATE apex_mod.eres_bulk_res_upload_detail d
+               SET d.row_status     = 'INVALID',
+                   d.mer_num        = NULL,
+                   d.us_currency_amt= NULL,
+                   d.trn_dt         = NULL,
+                   d.susp_reas_cd   = NULL,
+                   d.work_of_dt     = NULL,
+                   d.case_status_id = NULL
+             WHERE d.job_id = v_job_id
+               AND (d.pts_res_group_id = l_invalid_ids(i)
+                    OR d.pts_res_group_id IS NULL);
+    END IF;
 
     COMMIT;
 
-    DBMS_OUTPUT.PUT_LINE('✅ Processing completed successfully.');
+    DBMS_OUTPUT.PUT_LINE('✅ Job processing completed successfully.');
     DBMS_OUTPUT.PUT_LINE('  → VALID records updated: ' || v_valid_count);
     DBMS_OUTPUT.PUT_LINE('  → INVALID records updated: ' || v_invalid_count);
     DBMS_OUTPUT.PUT_LINE('---------------------------------------------');
