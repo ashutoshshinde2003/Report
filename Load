@@ -158,4 +158,195 @@ EXCEPTION
         DBMS_OUTPUT.PUT_LINE('❌ Error: ' || SQLERRM);
         ROLLBACK;
 END;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DECLARE
+    v_job_id NUMBER := :P22_NEW_JOB_ID; -- or replace with your job ID variable
+
+    -- Cursor: fetch all detail records for this job
+    CURSOR c_details IS
+        SELECT TRIM(d.pts_res_group_id) AS pts_res_group_id
+          FROM apex_mod.eres_bulk_res_upload_detail d
+         WHERE d.job_id = v_job_id;
+
+    -- Table types for bulk collect
+    TYPE t_id_tab IS TABLE OF VARCHAR2(100) INDEX BY PLS_INTEGER;
+    l_ids t_id_tab;
+
+    -- Aggregated PTS_CASE data
+    TYPE t_case_rec IS RECORD (
+        mer_num         VARCHAR2(50),
+        us_currency_amt NUMBER,
+        trn_dt          DATE,
+        susp_reas_cd    NUMBER,
+        work_of_dt      DATE,
+        case_status_id  NUMBER
+    );
+    TYPE t_case_tab IS TABLE OF t_case_rec INDEX BY VARCHAR2(100);
+    l_case_map t_case_tab;
+
+    -- Arrays for valid/invalid ids
+    TYPE t_valid_tab IS TABLE OF VARCHAR2(100) INDEX BY PLS_INTEGER;
+    TYPE t_invalid_tab IS TABLE OF VARCHAR2(100) INDEX BY PLS_INTEGER;
+    l_valid_ids   t_valid_tab;
+    l_invalid_ids t_invalid_tab;
+
+    -- Parallel arrays for FORALL updates
+    TYPE t_mernum_tab IS TABLE OF VARCHAR2(50) INDEX BY PLS_INTEGER;
+    TYPE t_amt_tab    IS TABLE OF NUMBER INDEX BY PLS_INTEGER;
+    TYPE t_date_tab   IS TABLE OF DATE INDEX BY PLS_INTEGER;
+    TYPE t_cd_tab     IS TABLE OF NUMBER INDEX BY PLS_INTEGER;
+
+    l_mernum_tab     t_mernum_tab;
+    l_amt_tab        t_amt_tab;
+    l_trndt_tab      t_date_tab;
+    l_susp_tab       t_cd_tab;
+    l_work_tab       t_date_tab;
+    l_status_tab     t_cd_tab;
+
+    -- Counters
+    v_valid_count   NUMBER := 0;
+    v_invalid_count NUMBER := 0;
+
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('=== Job Validation Started for Job ID: ' || v_job_id || ' ===');
+
+    ----------------------------------------------------------------------
+    -- Step 1: Preload aggregated case data (sum & max)
+    ----------------------------------------------------------------------
+    FOR rec IN (
+        SELECT 
+            p.pts_res_group_id,
+            MAX(p.mer_num)          AS mer_num,
+            SUM(p.us_currency_amt)  AS us_currency_amt,
+            MAX(p.trn_dt)           AS trn_dt,
+            MAX(p.susp_reas_cd)     AS susp_reas_cd,
+            MAX(p.work_of_dt)       AS work_of_dt,
+            MAX(p.case_status_id)   AS case_status_id
+          FROM eresuser_owner.pts_case p
+         GROUP BY p.pts_res_group_id
+    ) LOOP
+        l_case_map(TO_CHAR(rec.pts_res_group_id)).mer_num         := rec.mer_num;
+        l_case_map(TO_CHAR(rec.pts_res_group_id)).us_currency_amt := rec.us_currency_amt;
+        l_case_map(TO_CHAR(rec.pts_res_group_id)).trn_dt          := rec.trn_dt;
+        l_case_map(TO_CHAR(rec.pts_res_group_id)).susp_reas_cd    := rec.susp_reas_cd;
+        l_case_map(TO_CHAR(rec.pts_res_group_id)).work_of_dt      := rec.work_of_dt;
+        l_case_map(TO_CHAR(rec.pts_res_group_id)).case_status_id  := rec.case_status_id;
+    END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('Aggregated PTS_CASE data loaded: ' || l_case_map.COUNT || ' unique group IDs');
+
+    ----------------------------------------------------------------------
+    -- Step 2: Read all records from detail for the given job
+    ----------------------------------------------------------------------
+    OPEN c_details;
+    LOOP
+        FETCH c_details BULK COLLECT INTO l_ids LIMIT 1000;
+        EXIT WHEN l_ids.COUNT = 0;
+
+        FOR i IN 1 .. l_ids.COUNT LOOP
+            DECLARE
+                v_id VARCHAR2(100) := TRIM(l_ids(i));
+            BEGIN
+                IF v_id IS NULL OR v_id = '' THEN
+                    l_invalid_ids(l_invalid_ids.COUNT + 1) := v_id;
+                    v_invalid_count := v_invalid_count + 1;
+
+                ELSIF REGEXP_LIKE(v_id, '^\d+$') THEN
+                    IF l_case_map.EXISTS(v_id) THEN
+                        l_valid_ids(l_valid_ids.COUNT + 1) := v_id;
+                        v_valid_count := v_valid_count + 1;
+                    ELSE
+                        l_invalid_ids(l_invalid_ids.COUNT + 1) := v_id;
+                        v_invalid_count := v_invalid_count + 1;
+                    END IF;
+
+                ELSE
+                    l_invalid_ids(l_invalid_ids.COUNT + 1) := v_id;
+                    v_invalid_count := v_invalid_count + 1;
+                END IF;
+            END;
+        END LOOP;
+    END LOOP;
+    CLOSE c_details;
+
+    DBMS_OUTPUT.PUT_LINE('Records classified → VALID: '||v_valid_count||', INVALID: '||v_invalid_count);
+
+    ----------------------------------------------------------------------
+    -- Step 3: Prepare parallel arrays for VALID updates
+    ----------------------------------------------------------------------
+    IF l_valid_ids.COUNT > 0 THEN
+        FOR i IN 1 .. l_valid_ids.COUNT LOOP
+            l_mernum_tab(i)   := l_case_map(l_valid_ids(i)).mer_num;
+            l_amt_tab(i)      := l_case_map(l_valid_ids(i)).us_currency_amt;
+            l_trndt_tab(i)    := l_case_map(l_valid_ids(i)).trn_dt;
+            l_susp_tab(i)     := l_case_map(l_valid_ids(i)).susp_reas_cd;
+            l_work_tab(i)     := l_case_map(l_valid_ids(i)).work_of_dt;
+            l_status_tab(i)   := l_case_map(l_valid_ids(i)).case_status_id;
+        END LOOP;
+
+        ------------------------------------------------------------------
+        -- Step 4: Bulk Update VALID records
+        ------------------------------------------------------------------
+        FORALL i IN INDICES OF l_valid_ids
+            UPDATE apex_mod.eres_bulk_res_upload_detail d
+               SET d.row_status      = 'VALID',
+                   d.mer_num         = l_mernum_tab(i),
+                   d.us_currency_amt = l_amt_tab(i),
+                   d.trn_dt          = l_trndt_tab(i),
+                   d.susp_reas_cd    = l_susp_tab(i),
+                   d.work_of_dt      = l_work_tab(i),
+                   d.case_status_id  = l_status_tab(i)
+             WHERE d.job_id = v_job_id
+               AND TRIM(d.pts_res_group_id) = TRIM(l_valid_ids(i));
+    END IF;
+
+    ----------------------------------------------------------------------
+    -- Step 5: Bulk Update INVALID records (clear columns)
+    ----------------------------------------------------------------------
+    IF l_invalid_ids.COUNT > 0 THEN
+        FORALL i IN INDICES OF l_invalid_ids
+            UPDATE apex_mod.eres_bulk_res_upload_detail d
+               SET d.row_status      = 'INVALID',
+                   d.mer_num         = NULL,
+                   d.us_currency_amt = NULL,
+                   d.trn_dt          = NULL,
+                   d.susp_reas_cd    = NULL,
+                   d.work_of_dt      = NULL,
+                   d.case_status_id  = NULL
+             WHERE d.job_id = v_job_id
+               AND (TRIM(d.pts_res_group_id) = TRIM(l_invalid_ids(i))
+                    OR d.pts_res_group_id IS NULL);
+    END IF;
+
+    ----------------------------------------------------------------------
+    -- Step 6: Final summary output
+    ----------------------------------------------------------------------
+    COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('=== Job Validation Completed ===');
+    DBMS_OUTPUT.PUT_LINE('VALID records updated  : ' || v_valid_count);
+    DBMS_OUTPUT.PUT_LINE('INVALID records updated: ' || v_invalid_count);
+    DBMS_OUTPUT.PUT_LINE('==================================');
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('❌ Error: ' || SQLERRM);
+        ROLLBACK;
+END;
 /
