@@ -120,3 +120,30 @@ EXCEPTION
         ROLLBACK;
 END;
 /
+
+
+
+
+
+
+
+
+
+// this.triggeringElement is the input[type=file] DOM element
+(function(){
+  try {
+    var el = this.triggeringElement || this.sourceElement || document.getElementById('P21_FILE_UPLOAD');
+    if(!el) return;
+    var f = el.files && el.files[0];
+    if(f) {
+      // set the page item with the filename
+      apex.item('P21_FILE_NAME').setValue(f.name);
+    } else {
+      // fallback: clear page item if no file chosen
+      apex.item('P21_FILE_NAME').setValue('');
+    }
+  } catch(e){
+    // debug if required
+    console.warn('Capture filename error', e);
+  }
+}).call(this);
