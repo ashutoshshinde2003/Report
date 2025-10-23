@@ -175,3 +175,245 @@ END;
 
 
 
+
+
+
+DECLARE
+  v_job_id       NUMBER := :JOB_ID;  -- bind or replace with your actual job id
+
+  ----------------------------------------------------------------
+  -- 1) Types (kept same as your original)
+  ----------------------------------------------------------------
+  TYPE detail_rec_t IS RECORD (
+    ruid              ROWID,
+    pts_res_group_id  VARCHAR2(100)
+  );
+  TYPE detail_tab_t IS TABLE OF detail_rec_t;
+
+  TYPE case_rec_t IS RECORD (
+    mer_num         VARCHAR2(50),
+    us_currency_amt NUMBER,
+    trn_dt          DATE,
+    susp_reas_cd    NUMBER,
+    work_of_dt      DATE,
+    case_status_id  NUMBER
+  );
+  TYPE case_map_t IS TABLE OF case_rec_t
+    INDEX BY VARCHAR2(100);
+
+  -- arrays for FORALL
+  TYPE rowid_tab_t IS TABLE OF ROWID     INDEX BY PLS_INTEGER;
+  TYPE mernum_tab_t IS TABLE OF VARCHAR2(50) INDEX BY PLS_INTEGER;
+  TYPE num_tab_t   IS TABLE OF NUMBER    INDEX BY PLS_INTEGER;
+  TYPE date_tab_t  IS TABLE OF DATE      INDEX BY PLS_INTEGER;
+
+  ----------------------------------------------------------------
+  -- 2) Variables & tuning constants
+  ----------------------------------------------------------------
+  c_fetch_chunk CONSTANT PLS_INTEGER := 2000;  -- number of detail rows fetched per chunk
+  c_forall_chunk CONSTANT PLS_INTEGER := 1000; -- inner FORALL chunk size for updates
+
+  l_details     detail_tab_t;    -- chunked detail rows
+  l_case_map    case_map_t;      -- aggregated PTS_CASE data for current chunk
+
+  -- VALID lists (per-chunk)
+  l_valid_rids  rowid_tab_t;
+  l_mernum_tab  mernum_tab_t;
+  l_amt_tab     num_tab_t;
+  l_trndt_tab   date_tab_t;
+  l_susp_tab    num_tab_t;
+  l_work_tab    date_tab_t;
+  l_stat_tab    num_tab_t;
+  v_valid_cnt   PLS_INTEGER := 0;
+
+  -- INVALID list (per-chunk)
+  l_invalid_rids rowid_tab_t;
+  v_invalid_cnt  PLS_INTEGER := 0;
+
+  -- Totals across all chunks
+  g_valid_total   PLS_INTEGER := 0;
+  g_invalid_total PLS_INTEGER := 0;
+
+  -- helper to build unique id list per chunk
+  TYPE assoc_set_t IS TABLE OF PLS_INTEGER INDEX BY VARCHAR2(100);
+  l_assoc_set assoc_set_t;
+  l_id_list   SYS.ODCIVARCHAR2LIST := SYS.ODCIVARCHAR2LIST();
+
+  -- cursor to stream detail rows
+  CURSOR c_detail IS
+    SELECT ROWID AS ruid, TRIM(pts_res_group_id) AS pts_res_group_id
+    FROM apex_mod.eres_bulk_res_upload_detail
+    WHERE job_id = v_job_id;
+
+  v_id VARCHAR2(100);
+
+BEGIN
+  IF v_job_id IS NULL THEN
+    raise_application_error(-20001, 'JOB_ID is null - cannot proceed');
+  END IF;
+
+  DBMS_OUTPUT.PUT_LINE('Chunked processing start for JOB_ID=' || v_job_id || ' (fetch_chunk=' || c_fetch_chunk || ', forall_chunk='||c_forall_chunk||')');
+
+  OPEN c_detail;
+  LOOP
+    -- 1) fetch a chunk of detail rows
+    FETCH c_detail BULK COLLECT INTO l_details LIMIT c_fetch_chunk;
+    EXIT WHEN l_details.COUNT = 0;
+
+    -- reset per-chunk structures
+    l_case_map := case_map_t();
+    l_valid_rids := rowid_tab_t();
+    l_mernum_tab := mernum_tab_t();
+    l_amt_tab    := num_tab_t();
+    l_trndt_tab  := date_tab_t();
+    l_susp_tab   := num_tab_t();
+    l_work_tab   := date_tab_t();
+    l_stat_tab   := num_tab_t();
+    l_invalid_rids := rowid_tab_t();
+    v_valid_cnt := 0;
+    v_invalid_cnt := 0;
+    l_assoc_set := assoc_set_t();
+    l_id_list.DELETE;
+
+    -- 2) build unique ID set for this chunk (skip null/blank ids)
+    FOR i IN 1 .. l_details.COUNT LOOP
+      v_id := TRIM(l_details(i).pts_res_group_id);
+      IF v_id IS NOT NULL AND v_id <> '' THEN
+        IF NOT l_assoc_set.EXISTS(v_id) THEN
+          l_assoc_set(v_id) := 1;
+        END IF;
+      END IF;
+    END LOOP;
+
+    -- convert assoc_set keys into l_id_list (SYS.ODCIVARCHAR2LIST) for SQL IN
+    IF l_assoc_set.COUNT > 0 THEN
+      l_id_list.DELETE;
+      DECLARE
+        key VARCHAR2(100);
+        ctr PLS_INTEGER := 0;
+      BEGIN
+        key := l_assoc_set.FIRST;
+        WHILE key IS NOT NULL LOOP
+          ctr := ctr + 1;
+          l_id_list.EXTEND;
+          l_id_list(ctr) := key;
+          key := l_assoc_set.NEXT(key);
+        END LOOP;
+      END;
+    END IF;
+
+    -- 3) fetch aggregated PTS_CASE data only for IDs in this chunk (SUM/MAX logic)
+    IF l_id_list.COUNT > 0 THEN
+      FOR rec IN (
+        SELECT
+          TRIM(p.pts_res_group_id) AS grp,
+          MAX(p.mer_num)          AS mer_num,
+          SUM(p.us_currency_amt)  AS us_currency_amt,
+          MAX(p.trn_dt)           AS trn_dt,
+          MAX(p.susp_reas_cd)     AS susp_reas_cd,
+          MAX(p.work_of_dt)       AS work_of_dt,
+          MAX(p.case_status_id)   AS case_status_id
+        FROM eresuser_owner.pts_case p
+        WHERE TRIM(p.pts_res_group_id) IN (SELECT COLUMN_VALUE FROM TABLE(l_id_list))
+        GROUP BY TRIM(p.pts_res_group_id)
+      ) LOOP
+        l_case_map(rec.grp).mer_num         := rec.mer_num;
+        l_case_map(rec.grp).us_currency_amt := rec.us_currency_amt;
+        l_case_map(rec.grp).trn_dt          := rec.trn_dt;
+        l_case_map(rec.grp).susp_reas_cd    := rec.susp_reas_cd;
+        l_case_map(rec.grp).work_of_dt      := rec.work_of_dt;
+        l_case_map(rec.grp).case_status_id  := rec.case_status_id;
+      END LOOP;
+    END IF;
+
+    -- 4) classify each row of the chunk into VALID / INVALID and build parallel arrays (dense indices)
+    FOR i IN 1 .. l_details.COUNT LOOP
+      v_id := l_details(i).pts_res_group_id; -- already trimmed
+      IF v_id IS NOT NULL
+         AND REGEXP_LIKE(v_id, '^\d+$')     -- keep your original numeric check
+         AND l_case_map.EXISTS(v_id)       -- only if aggregated data found
+      THEN
+        v_valid_cnt := v_valid_cnt + 1;
+        l_valid_rids(v_valid_cnt) := l_details(i).ruid;
+
+        l_mernum_tab(v_valid_cnt) := l_case_map(v_id).mer_num;
+        l_amt_tab   (v_valid_cnt) := l_case_map(v_id).us_currency_amt;
+        l_trndt_tab (v_valid_cnt) := l_case_map(v_id).trn_dt;
+        l_susp_tab  (v_valid_cnt) := l_case_map(v_id).susp_reas_cd;
+        l_work_tab  (v_valid_cnt) := l_case_map(v_id).work_of_dt;
+        l_stat_tab  (v_valid_cnt) := l_case_map(v_id).case_status_id;
+      ELSE
+        v_invalid_cnt := v_invalid_cnt + 1;
+        l_invalid_rids(v_invalid_cnt) := l_details(i).ruid;
+      END IF;
+    END LOOP;
+
+    -- 5) Bulk-update VALID records in inner chunks using FORALL + ROWID
+    IF v_valid_cnt > 0 THEN
+      DECLARE
+        s PLS_INTEGER := 1;
+        e PLS_INTEGER;
+      BEGIN
+        WHILE s <= v_valid_cnt LOOP
+          e := LEAST(s + c_forall_chunk - 1, v_valid_cnt);
+          FORALL idx IN s .. e
+            UPDATE apex_mod.eres_bulk_res_upload_detail d
+               SET d.row_status      = 'VALID',
+                   d.mer_num         = l_mernum_tab(idx),
+                   d.us_currency_amt = l_amt_tab(idx),
+                   d.trn_dt          = l_trndt_tab(idx),
+                   d.susp_reas_cd    = l_susp_tab(idx),
+                   d.work_of_dt      = l_work_tab(idx),
+                   d.case_status_id  = l_stat_tab(idx)
+             WHERE ROWID = l_valid_rids(idx);
+          COMMIT; -- commit per inner chunk to keep undo reasonable and show progress
+          s := e + 1;
+        END LOOP;
+      END;
+    END IF;
+
+    -- 6) Bulk-update INVALID records (clear fields) in inner chunks
+    IF v_invalid_cnt > 0 THEN
+      DECLARE
+        s PLS_INTEGER := 1;
+        e PLS_INTEGER;
+      BEGIN
+        WHILE s <= v_invalid_cnt LOOP
+          e := LEAST(s + c_forall_chunk - 1, v_invalid_cnt);
+          FORALL idx IN s .. e
+            UPDATE apex_mod.eres_bulk_res_upload_detail d
+               SET d.row_status      = 'INVALID',
+                   d.mer_num         = NULL,
+                   d.us_currency_amt = NULL,
+                   d.trn_dt          = NULL,
+                   d.susp_reas_cd    = NULL,
+                   d.work_of_dt      = NULL,
+                   d.case_status_id  = NULL
+             WHERE ROWID = l_invalid_rids(idx);
+          COMMIT;
+          s := e + 1;
+        END LOOP;
+      END;
+    END IF;
+
+    -- 7) accumulate totals & debug output per chunk
+    g_valid_total := g_valid_total + v_valid_cnt;
+    g_invalid_total := g_invalid_total + v_invalid_cnt;
+
+    DBMS_OUTPUT.PUT_LINE('Chunk processed: rows='||l_details.COUNT||' valid='||v_valid_cnt||' invalid='||v_invalid_cnt);
+  END LOOP; -- outer fetch loop
+
+  CLOSE c_detail;
+
+  DBMS_OUTPUT.PUT_LINE('Processing complete for JOB_ID='||v_job_id||' TOTAL_VALID='||g_valid_total||' TOTAL_INVALID='||g_invalid_total);
+
+EXCEPTION
+  WHEN OTHERS THEN
+    ROLLBACK;
+    DBMS_OUTPUT.PUT_LINE('Fatal error during processing: ' || SQLERRM);
+    RAISE;
+END;
+
+
+
+
