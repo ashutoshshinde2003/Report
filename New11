@@ -8,32 +8,38 @@ DECLARE
     l_status    VARCHAR2(20);
     l_row_count NUMBER := 0;
 --    l_null_count number :=0;
-  
-   
 BEGIN
-    -- 1. Get latest uploaded file from APEX temp files
-    SELECT blob_content, filename
-      INTO l_blob, l_file_name
-      FROM (
+    ----------------------------------------------------------------------
+    -- 1. Get uploaded file from APEX temp files by file name
+    ----------------------------------------------------------------------
+    BEGIN
         SELECT blob_content, filename
+          INTO l_blob, l_file_name
           FROM apex_application_temp_files
          WHERE application_id = :APP_ID
-         ORDER BY created_on DESC
-      )
-     WHERE ROWNUM = 1;
+           AND UPPER(filename) = UPPER(:P21_FILE_NAME);  -- page item or variable holding filename
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-20001, 'No uploaded file found with name: ' || :P21_FILE_NAME);
+    END;
 
-
+    ----------------------------------------------------------------------
     -- 2. Generate JOB_ID from your sequence
+    ----------------------------------------------------------------------
     SELECT bulk_resolution_seq.NEXTVAL INTO l_job_id FROM dual;
 
+    ----------------------------------------------------------------------
     -- 3. Insert header record
+    ----------------------------------------------------------------------
     INSERT INTO eres_bulk_res_upload_smry (
         job_id, created_by, created_dt, job_status
     ) VALUES (
         l_job_id, :APP_USER, SYSDATE, 'PENDING'
     );
 
+    ----------------------------------------------------------------------
     -- 4. Loop through Excel rows
+    ----------------------------------------------------------------------
     FOR rec IN (
         SELECT col001 AS pts_res_group_id
           FROM TABLE(
@@ -41,13 +47,12 @@ BEGIN
                 p_content   => l_blob,
                 p_file_name => l_file_name,
                 p_skip_rows => 1
-                
             )
           )
     )
     LOOP
         l_seq_no := l_seq_no + 1;
-        l_row_count := l_row_count +1;
+        l_row_count := l_row_count + 1;
 
         BEGIN
             -- Always insert row, classify VALID vs INVALID
@@ -67,11 +72,9 @@ BEGIN
             END IF;
 
             -- IF TRIM(rec.pts_res_group_id) IS NULL THEN
-            -- l_null_count := l_null_count + 1;
+            --     l_null_count := l_null_count + 1;
             -- END IF;
-            
 
-            
         EXCEPTION
             WHEN OTHERS THEN
                 l_success := FALSE;
@@ -82,11 +85,15 @@ BEGIN
         END;
     END LOOP;
 
+    ----------------------------------------------------------------------
     -- 5. Cleanup temp file
+    ----------------------------------------------------------------------
     DELETE FROM apex_application_temp_files
      WHERE filename = l_file_name;
 
+    ----------------------------------------------------------------------
     -- 6. Update header status
+    ----------------------------------------------------------------------
     IF l_success THEN
         l_status := 'SCHEDULED';
     ELSE
@@ -97,20 +104,20 @@ BEGIN
        SET job_status = l_status
      WHERE job_id = l_job_id;
 
-
-
     COMMIT;
 
+    ----------------------------------------------------------------------
     -- 7. Optionally set JOB_ID in a page item
-    
+    ----------------------------------------------------------------------
     :P21_NEW_1_JOBID := l_job_id;
-    :JOB_ID := :P21_NEW_1_JOBID;
-    :TOTAL_ROW_COUNT := l_row_count ;
-    :TOTAL_COUNT := l_row_count ;
+    :JOB_ID          := :P21_NEW_1_JOBID;
+    :TOTAL_ROW_COUNT := l_row_count;
+    :TOTAL_COUNT     := l_row_count;
 
 EXCEPTION
     WHEN OTHERS THEN
         l_err_msg := SQLERRM;
-        DBMS_OUTPUT.PUT_LINE('Fatal error: '||l_err_msg);
+        DBMS_OUTPUT.PUT_LINE('Fatal error: ' || l_err_msg);
         ROLLBACK;
 END;
+/
