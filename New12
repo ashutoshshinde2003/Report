@@ -1,504 +1,119 @@
-PROCEDURE Sp_Load_Rpt_Pts_Case (I_Process_Id NUMBER)
-   IS
-      v_Batch_ctr           NUMBER := 0;
-      v_Err_Msg             VARCHAR2 (1000);
-      v_Pts_Res_Group_Id    NUMBER;
-      v_ACTION_NAME         REPORT_PTS_CASE.ACTION_NAME%TYPE;
-      v_SUSP_COMMENT_DESC   REPORT_PTS_CASE.SUSP_COMMENT_DESC%TYPE;
-      v_Resolution_Action   REPORT_PTS_CASE.RESOLUTION_ACTION%TYPE;
+DECLARE
+    l_blob      BLOB;
+    l_file_name VARCHAR2(255);
+    l_err_msg   VARCHAR2(4000);
+    l_job_id    NUMBER;
+    l_seq_no    NUMBER := 1;
+    l_success   BOOLEAN := TRUE;
+    l_status    VARCHAR2(20);
+    l_row_count NUMBER := 0;
+
+  
+   
+BEGIN
+    -- 1. Get latest uploaded file from APEX temp files
+    SELECT blob_content, filename
+      INTO l_blob, l_file_name
+      FROM (
+        SELECT blob_content, filename
+          FROM apex_application_temp_files
+         WHERE application_id = :APP_ID
+         ORDER BY created_on DESC
+      )
+     WHERE ROWNUM = 1;
 
 
-      CURSOR Cur_Pts_Batch
-      IS
-         SELECT *
-           FROM Eres_Stage.Pts_Batch_Resolution
-          WHERE pts_res_group_id IN (SELECT pts_res_group_id
-                                       FROM Pts_Case_Id_Log
-                                     WHERE Process_Id = I_Process_Id); -- Changed Ver 2.0 Process_Id =0
+    -- 2. Generate JOB_ID from your sequence
+    SELECT bulk_resolution_seq.NEXTVAL INTO l_job_id FROM dual;
 
-      ---Ver 9.0---
-      CURSOR Cur_PTS_LOG
-      IS
-        SELECT Rowid as therowid,PC.Pts_Res_Group_Id From PTS_CASE_ID_LOG PC
-        WHERE PROCESS_ID = 0;
+    -- 3. Insert header record
+    INSERT INTO eres_bulk_res_upload_smry (
+        job_id, created_by, created_dt, job_status
+    ) VALUES (
+        l_job_id, :APP_USER, SYSDATE, 'PENDING'
+    );
 
-      TYPE Ty_Pts_Batch IS TABLE OF Eres_Stage.Pts_Batch_Resolution%ROWTYPE
-         INDEX BY BINARY_INTEGER;
+    -- 4. Loop through Excel rows
+    FOR rec IN (
+        SELECT col001 AS pts_res_group_id
+          FROM TABLE(
+            apex_data_parser.parse(
+                p_content   => l_blob,
+                p_file_name => l_file_name,
+                p_skip_rows => 1
+                
+            )
+          )
+    )
+    LOOP
+        l_seq_no := l_seq_no + 1;
+        l_row_count := l_row_count +1;
 
-      -- TYPE Ty_Pts_Log IS TABLE OF PTS_CASE_ID_LOG%ROWTYPE INDEX BY BINARY_INTEGER;
-	  TYPE Ty_Pts_Log IS TABLE OF Cur_PTS_LOG%ROWTYPE INDEX BY BINARY_INTEGER;
-
-      v_Pts_Batch_Recs      Ty_Pts_Batch;
-      v_Pts_Log_Recs        Ty_Pts_Log;
-   BEGIN
-      INSERT INTO Rpt_Load_Detail_Log (Process_Id,
-                                       Table_Name,
-                                       Status,
-                                       MESSAGE,
-                                       Process_Start_Dt,
-                                       Process_End_Dt,
-                                       Number_of_Rows)
-           VALUES (I_Process_Id,
-                   'REPORT_PTS_CASE',
-                   'Started',
-                   '',
-                   SYSDATE,
-                   NULL,
-                   NULL);
-
-      COMMIT;
-
----Start Ver 9.0
-
-    OPEN Cur_Pts_Log;
-	LOOP
-		FETCH Cur_Pts_Log BULK COLLECT INTO v_Pts_Log_Recs LIMIT 5000;
-		EXIT WHEN v_Pts_Log_Recs.COUNT=0;
-		FOR indx in v_Pts_Log_Recs.FIRST .. v_Pts_Log_Recs.LAST
-		LOOP
-			UPDATE Pts_Case_Id_Log
-			Set Process_Id=I_Process_Id
-			Where Process_Id=0
-			And Pts_Res_Group_Id = v_Pts_Log_Recs(indx).Pts_Res_Group_Id
-			And rowid = v_Pts_Log_Recs(indx).therowid ;
-		 END LOOP;
-
-
-		 UPDATE Rpt_Load_Detail_Log
-			SET process_end_dt = SYSDATE
-		WHERE process_id = I_Process_Id
-		  AND Table_Name = 'REPORT_PTS_CASE';
-
-		COMMIT;
-	END LOOP;
-    CLOSE Cur_Pts_Log;
-
-       --Ver 2.0
-     /* Update Pts_Case_Id_Log
-      Set Process_Id=I_Process_Id
-      Where Process_Id =0 ;
-
-      COMMIT;*/
-      ---End Ver 9.0
-
-      OPEN Cur_Pts_Batch;
-
-      LOOP
-         FETCH Cur_Pts_Batch BULK COLLECT INTO v_Pts_Batch_Recs LIMIT 10000;
-
-         EXIT WHEN v_Pts_Batch_Recs.COUNT = 0;
-
-
-         FOR indx IN v_Pts_Batch_Recs.FIRST .. v_Pts_Batch_Recs.LAST
-         LOOP
-            v_Batch_ctr := v_Batch_ctr + 1;
-            v_Pts_Res_Group_id := v_Pts_Batch_Recs (indx).Pts_Res_Group_id;
-
-            BEGIN
-               SELECT Action_NAme, Resolution_Action
-                 INTO v_ACTION_NAME, v_Resolution_Action
-                 FROM Eres_Stage.Action_Ref
-                WHERE Action_Id = v_Pts_Batch_Recs (indx).Action_Id;
-            EXCEPTION
-               WHEN OTHERS
-               THEN
-                  v_ACTION_NAME := NULL;
-            END;
-
-            IF v_Pts_Batch_Recs (indx).susp_comment_id <> 0
-            THEN
-               BEGIN
-                  SELECT Comment_Desc
-                    INTO v_SUSP_COMMENT_DESC
-                    FROM Eres_Stage.Pts_Comment_Ref
-                   WHERE Susp_Comment_Id =
-                            v_Pts_Batch_Recs (indx).susp_comment_id;
-               EXCEPTION
-                  WHEN OTHERS
-                  THEN
-                     v_SUSP_COMMENT_DESC := 'NONE';
-               END;
+        BEGIN
+            -- Always insert row, classify VALID vs INVALID
+            IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') THEN
+                INSERT INTO eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 'VALID'
+                );
             ELSE
-               v_SUSP_COMMENT_DESC := 'NONE';
+                INSERT INTO eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID'
+                );
+                l_success := FALSE; -- mark job as failed if any invalid
             END IF;
 
-			/* block to check if it is south case */
+            -- IF TRIM(rec.pts_res_group_id) IS NULL THEN
+            -- l_null_count := l_null_count + 1;
+            -- END IF;
+            
+
+            
+        EXCEPTION
+            WHEN OTHERS THEN
+                l_success := FALSE;
+                l_err_msg := SQLERRM;
+                DBMS_OUTPUT.PUT_LINE(
+                    'Error inserting row '||l_seq_no||' : '||l_err_msg
+                );
+        END;
+    END LOOP;
+
+    -- 5. Cleanup temp file
+    DELETE FROM apex_application_temp_files
+     WHERE filename = l_file_name;
+
+    -- 6. Update header status
+    IF l_success THEN
+        l_status := 'SCHEDULED';
+    ELSE
+        l_status := 'SCHEDULED';
+    END IF;
+
+    UPDATE eres_bulk_res_upload_smry
+       SET job_status = l_status
+     WHERE job_id = l_job_id;
 
 
--------------------------------------------
-            MERGE INTO eres_report.report_pts_case dest
-                 USING (SELECT pc.CASE_ID,
-                               pc.SUB_ID,
-                               pc.BATCH_NUM,
-                               pc.TRN_MER_NAME,
-                               pc.PLATFORM_CD,
-                               spf.PLATFORM_DESC,
-                               pc.WORK_OF_DT,
-                               pc.PTS_RES_GROUP_ID,
-                               pc.TRN_TYPE_CD,
-                               ttr.CR_CARD_TRANS_DESC TRN_TYPE_DESC,
-                               pc.TRN_DT,
-                               pc.EXP_DT,
-                               pc.US_CURRENCY_AMT,
-                               pc.CARD_HOLD_ACCT_NUM,
-                               pc.TRN_CURRENCY_AMT,
-                               TRUNC (v_Pts_Batch_Recs (indx).RES_DT) RES_DT,
-                               v_Pts_Batch_Recs (indx).ACTION_ID ACTION_ID,
-                               v_RESOLUTION_ACTION Resolution_Action,
-                               v_Pts_Batch_Recs (indx).PTS_GRP_NOTE
-                                  PTS_GRP_NOTE,
-                               v_Pts_Batch_Recs (indx).USER_NAME USER_NAME,
-                               v_ACTION_NAME Action_Name,
-                               spf.SYSTEM_CD,
-                               spf.PROCESSING_SYSTEM,
-                               pc.AUTH_CD,
-                               pc.AUTH_DT,
-                               pc.IP_REF,
-                               v_Pts_Batch_Recs (indx).SUSP_COMMENT_ID
-                                  SUSP_COMMENT_ID,
-                               v_Susp_comment_desc SUSP_COMMENT_DESC,
-                               pc.CREATED_DT,
-                               mr.MER_CAT_CD,
-                               decode(PC.platform_cd,'SO',pc.trn_mer_name,mr.MER_NAME) as mer_name,
-                               pc.MER_NUM,
-                               mr.MER_STREET,
-                               decode(pc.platform_cd,'SO',pc.trn_mer_city,mr.MER_CITY) as mer_city,
-                               decode(pc.platform_cd,'SO',pc.trn_mer_state,mr.MER_STATE) as mer_state,
-                               mr.MER_ZIP_CD,
-                               mr.MER_STATUS,
-                               mr.MER_STATE_CNTRY_CD,
-                               mr.MER_EMAIL,
-                               mr.MARKER_BANK_IND,
-                               mr.BILLTO_NAME,
-                               mr.BILLTO_ADDRESS1,
-                               mr.BILLTO_ADDRESS2,
-                               mr.BILLTO_CITY,
-                               mr.BILLTO_STATE_CNTRY_CD,
-                               mr.BILLTO_ZIP_CD,
-                               mr.AFFILIATE_NAME,
-                               mr.AFFILIATE_ADDRESS1,
-                               mr.AFFILIATE_ADDRESS2,
-                               mr.AFFILIATE_ADDRESS3,
-                               mr.AFFILIATE_CITY,
-                               mr.AFFILIATE_STATE_CNTRY_CD,
-                               mr.AFFILIATE_ZIP_CD,
-                               pc.MER_EXTERNAL_NUM,
-                               pc.TRN_MER_CAT_CD,
-                               pc.CUT,
-                               pc.LETTER_IND,
-                               pc.LETTER_TYPE,
-                               pc.SUSP_REAS_CD,
-                               pc.SUSP_REAS_CD2,
-                               pc.SUSP_REAS_CD3,
-                               pc.ALLIANCE_ID,
-                               par.ALLIANCE_NAME,
-                               pc.CASE_STATUS_ID,
-                               csr.STATUS_NAME case_status_name,
-                               pc.PRODUCT_CODE,
-                               pc.SUB_PRODUCT_CODE,
-                               NULL credit_risk_criteria,
-                               pc.closed_dt,
-							   pc.CREDIT_RISK_FLAG            -------ver 3.00
-							   ,pc.RTC_FLAG  --7.0
-							   ,pc.PSP_FLAG --11.0
-							   ,pc.PSP_IND --11.0
-                          FROM eres_stage.PTS_CASE pc,
-                               eres_stage.pts_alliance_ref par,
-                               eres_stage.MERCHANT_REF mr,
-                               eres_stage.system_platform_ref spf,
-                               eres_stage.case_status_ref csr,
-                               eres_stage.trn_type_ref ttr
-                         WHERE     pc.pts_res_group_id =
-                                      v_Pts_Batch_Recs (indx).Pts_Res_Group_Id
-                               AND pc.alliance_id = par.alliance_id
-                               AND pc.mer_num = mr.mer_num(+)
-                               AND pc.platform_cd = spf.platform_cd(+)
-                               AND pc.case_status_id = csr.status_id
-                               AND pc.trn_type_cd = ttr.CR_CARD_TRANS_CD(+)   --Ver 2.0
-                               AND ttr.appl_id(+) = 2) src
-                    ON (dest.case_id = src.case_id)
-            WHEN MATCHED
-            THEN
-               UPDATE SET
-                  SUB_ID = src.SUB_ID,
-                  BATCH_NUM = src.BATCH_NUM,
-                  TRN_MER_NAME = src.TRN_MER_NAME,
-                  PLATFORM_CD = src.PLATFORM_CD,
-                  PLATFORM_DESC = src.PLATFORM_DESC,
-                  WORK_OF_DT = src.WORK_OF_DT,
-                  PTS_RES_GROUP_ID = src.PTS_RES_GROUP_ID,
-                  TRN_TYPE_CD = src.TRN_TYPE_CD,
-                  TRN_TYPE_DESC = src.TRN_TYPE_DESC,
-                  TRN_DT = src.TRN_DT,
-                  EXP_DT = src.EXP_DT,
-                  US_CURRENCY_AMT = src.US_CURRENCY_AMT,
-                  CARD_HOLD_ACCT_NUM = src.CARD_HOLD_ACCT_NUM,
-                  TRN_CURRENCY_AMT = src.TRN_CURRENCY_AMT,
-                  RES_DT = src.RES_DT,
-                  ACTION_ID = src.ACTION_ID,
-                  RESOLUTION_ACTION = src.RESOLUTION_ACTION,
-                  PTS_GRP_NOTE = src.PTS_GRP_NOTE,
-                  USER_NAME = src.USER_NAME,
-                  ACTION_NAME = src.ACTION_NAME,
-                  SYSTEM_CD = src.SYSTEM_CD,
-                  PROCESSING_SYSTEM = src.PROCESSING_SYSTEM,
-                  AUTH_CD = src.AUTH_CD,
-                  AUTH_DT = src.AUTH_DT,
-                  IP_REF = src.IP_REF,
-                  SUSP_COMMENT_ID = src.SUSP_COMMENT_ID,
-                  SUSP_COMMENT_DESC = src.SUSP_COMMENT_DESC,
-                  CREATED_DT = src.CREATED_DT,
-                  TRUNC_CREATED_DT = TRUNC (src.Created_DT),
-                  MER_CAT_CD = src.MER_CAT_CD,
-                  MER_NAME = src.MER_NAME,
-                  MER_NUM = src.MER_NUM,
-                  MER_STREET = src.MER_STREET,
-                  MER_CITY = src.MER_CITY,
-                  MER_STATE = src.MER_STATE,
-                  MER_ZIP_CD = src.MER_ZIP_CD,
-                  MER_STATUS = src.MER_STATUS,
-                  MER_STATE_CNTRY_CD = src.MER_STATE_CNTRY_CD,
-                  MER_EMAIL = src.MER_EMAIL,
-                  MARKER_BANK_IND = src.MARKER_BANK_IND,
-                  BILLTO_NAME = src.BILLTO_NAME,
-                  BILLTO_ADDRESS1 = src.BILLTO_ADDRESS1,
-                  BILLTO_ADDRESS2 = src.BILLTO_ADDRESS2,
-                  BILLTO_CITY = src.BILLTO_CITY,
-                  BILLTO_STATE_CNTRY_CD = src.BILLTO_STATE_CNTRY_CD,
-                  BILLTO_ZIP_CD = src.BILLTO_ZIP_CD,
-                  AFFILIATE_NAME = src.AFFILIATE_NAME,
-                  AFFILIATE_ADDRESS1 = src.AFFILIATE_ADDRESS1,
-                  AFFILIATE_ADDRESS2 = src.AFFILIATE_ADDRESS2,
-                  AFFILIATE_ADDRESS3 = src.AFFILIATE_ADDRESS3,
-                  AFFILIATE_CITY = src.AFFILIATE_CITY,
-                  AFFILIATE_STATE_CNTRY_CD = src.AFFILIATE_STATE_CNTRY_CD,
-                  AFFILIATE_ZIP_CD = src.AFFILIATE_ZIP_CD,
-                  MER_EXTERNAL_NUM = src.MER_EXTERNAL_NUM,
-                  TRN_MER_CAT_CD = src.TRN_MER_CAT_CD,
-                  CUT = src.CUT,
-                  LETTER_IND = src.LETTER_IND,
-                  LETTER_TYPE = src.LETTER_TYPE,
-                  SUSP_REAS_CD = src.SUSP_REAS_CD,
-                  SUSP_REAS_CD2 = src.SUSP_REAS_CD2,
-                  SUSP_REAS_CD3 = src.SUSP_REAS_CD3,
-                  ALLIANCE_ID = src.ALLIANCE_ID,
-                  ALLIANCE_NAME = src.ALLIANCE_NAME,
-                  CASE_STATUS_ID = src.CASE_STATUS_ID,
-                  case_status_name = src.case_status_name,
-                  PRODUCT_CODE = src.PRODUCT_CODE,
-                  SUB_PRODUCT_CODE = src.SUB_PRODUCT_CODE,
-                  --credit_risk_criteria =                            src.credit_risk_criteria ,
-                  closed_dt = src.closed_dt,
-				  CREDIT_RISK_FLAG= src.CREDIT_RISK_FLAG             -----ver 3.00
-                  ,RTC_FLAG = src.RTC_FLAG  --7.0
-                  ,PSP_FLAG = src.PSP_FLAG --11.0
-				  ,PSP_IND = src.PSP_IND --11.0
-            WHEN NOT MATCHED
-            THEN
-               INSERT     (CASE_ID,
-                           SUB_ID,
-                           BATCH_NUM,
-                           TRN_MER_NAME,
-                           PLATFORM_CD,
-                           PLATFORM_DESC,
-                           WORK_OF_DT,
-                           PTS_RES_GROUP_ID,
-                           TRN_TYPE_CD,
-                           TRN_TYPE_DESC,
-                           TRN_DT,
-                           EXP_DT,
-                           US_CURRENCY_AMT,
-                           CARD_HOLD_ACCT_NUM,
-                           TRN_CURRENCY_AMT,
-                           RES_DT,
-                           ACTION_ID,
-                           RESOLUTION_ACTION,
-                           PTS_GRP_NOTE,
-                           USER_NAME,
-                           ACTION_NAME,
-                           SYSTEM_CD,
-                           PROCESSING_SYSTEM,
-                           AUTH_CD,
-                           AUTH_DT,
-                           IP_REF,
-                           SUSP_COMMENT_ID,
-                           SUSP_COMMENT_DESC,
-                           CREATED_DT,
-                           TRUNC_CREATED_DT,
-                           MER_CAT_CD,
-                           MER_NAME,
-                           MER_NUM,
-                           MER_STREET,
-                           MER_CITY,
-                           MER_STATE,
-                           MER_ZIP_CD,
-                           MER_STATUS,
-                           MER_STATE_CNTRY_CD,
-                           MER_EMAIL,
-                           MARKER_BANK_IND,
-                           BILLTO_NAME,
-                           BILLTO_ADDRESS1,
-                           BILLTO_ADDRESS2,
-                           BILLTO_CITY,
-                           BILLTO_STATE_CNTRY_CD,
-                           BILLTO_ZIP_CD,
-                           AFFILIATE_NAME,
-                           AFFILIATE_ADDRESS1,
-                           AFFILIATE_ADDRESS2,
-                           AFFILIATE_ADDRESS3,
-                           AFFILIATE_CITY,
-                           AFFILIATE_STATE_CNTRY_CD,
-                           AFFILIATE_ZIP_CD,
-                           MER_EXTERNAL_NUM,
-                           TRN_MER_CAT_CD,
-                           CUT,
-                           LETTER_IND,
-                           LETTER_TYPE,
-                           SUSP_REAS_CD,
-                           SUSP_REAS_CD2,
-                           SUSP_REAS_CD3,
-                           ALLIANCE_ID,
-                           ALLIANCE_NAME,
-                           CASE_STATUS_ID,
-                           CASE_STATUS_NAME,
-                           PRODUCT_CODE,
-                           SUB_PRODUCT_CODE,
-                           CREDITRISK_CRITERIA_TYPE,
-                           CLOSED_DT,
-						   CREDIT_RISK_FLAG    ----ver 3.00
-						   ,RTC_FLAG  --7.0
-						   ,PSP_FLAG  --11.0
-						   ,PSP_IND --11.0
-						   )
-                   VALUES (src.CASE_ID,
-                           src.SUB_ID,
-                           src.BATCH_NUM,
-                           src.TRN_MER_NAME,
-                           src.PLATFORM_CD,
-                           src.PLATFORM_DESC,
-                           src.WORK_OF_DT,
-                           src.PTS_RES_GROUP_ID,
-                           src.TRN_TYPE_CD,
-                           src.TRN_TYPE_DESC,
-                           src.TRN_DT,
-                           src.EXP_DT,
-                           src.US_CURRENCY_AMT,
-                           src.CARD_HOLD_ACCT_NUM,
-                           src.TRN_CURRENCY_AMT,
-                           src.RES_DT,
-                           src.ACTION_ID,
-                           src.RESOLUTION_ACTION,
-                           src.PTS_GRP_NOTE,
-                           src.USER_NAME,
-                           src.ACTION_NAME,
-                           src.SYSTEM_CD,
-                           src.PROCESSING_SYSTEM,
-                           src.AUTH_CD,
-                           src.AUTH_DT,
-                           src.IP_REF,
-                           src.SUSP_COMMENT_ID,
-                           src.SUSP_COMMENT_DESC,
-                           src.CREATED_DT,
-                           TRUNC (src.Created_Dt),
-                           src.MER_CAT_CD,
-                           src.MER_NAME,
-                           src.MER_NUM,
-                           src.MER_STREET,
-                           src.MER_CITY,
-                           src.MER_STATE,
-                           src.MER_ZIP_CD,
-                           src.MER_STATUS,
-                           src.MER_STATE_CNTRY_CD,
-                           src.MER_EMAIL,
-                           src.MARKER_BANK_IND,
-                           src.BILLTO_NAME,
-                           src.BILLTO_ADDRESS1,
-                           src.BILLTO_ADDRESS2,
-                           src.BILLTO_CITY,
-                           src.BILLTO_STATE_CNTRY_CD,
-                           src.BILLTO_ZIP_CD,
-                           src.AFFILIATE_NAME,
-                           src.AFFILIATE_ADDRESS1,
-                           src.AFFILIATE_ADDRESS2,
-                           src.AFFILIATE_ADDRESS3,
-                           src.AFFILIATE_CITY,
-                           src.AFFILIATE_STATE_CNTRY_CD,
-                           src.AFFILIATE_ZIP_CD,
-                           src.MER_EXTERNAL_NUM,
-                           src.TRN_MER_CAT_CD,
-                           src.CUT,
-                           src.LETTER_IND,
-                           src.LETTER_TYPE,
-                           src.SUSP_REAS_CD,
-                           src.SUSP_REAS_CD2,
-                           src.SUSP_REAS_CD3,
-                           src.ALLIANCE_ID,
-                           src.ALLIANCE_NAME,
-                           src.CASE_STATUS_ID,
-                           src.case_status_name,
-                           src.PRODUCT_CODE,
-                           src.SUB_PRODUCT_CODE,
-                           src.credit_risk_criteria,
-                           src.closed_dt,
-						   src.CREDIT_RISK_FLAG     -----ver 3.00
-						   ,src.RTC_FLAG  --7.0
-						   ,src.PSP_FLAG  --11.0
-						   ,src.PSP_IND --11.0
-						   );
 
-            UPDATE pts_case_Id_Log
-               Set Status = 'COMPLETE'  --- Ver 2.0
-               --Process_Id = I_Process_Id
-             WHERE     Pts_Res_group_Id =
-                          v_Pts_Batch_Recs (indx).Pts_Res_Group_Id
-                   --AND Process_Id = 0;
-                   AND Process_Id = I_Process_Id; ---Ver 2.0
+    COMMIT;
 
-            IF v_Batch_Ctr MOD 100 = 0
-            THEN
-               UPDATE Rpt_Load_Detail_Log
-                  SET Process_End_Dt = SYSDATE,
-                      Status = 'RUNNING',
-                      Number_Of_Rows = v_Batch_Ctr
-                WHERE     Process_Id = I_Process_Id
-                      AND Table_Name = 'REPORT_PTS_CASE';
+    -- 7. Optionally set JOB_ID in a page item
+    
+    :P21_NEW_1_JOBID := l_job_id;
+    :JOB_ID := :P21_NEW_1_JOBID;
+    :TOTAL_ROW_COUNT := l_row_count ;
+    :TOTAL_COUNT := l_row_count ;
+     
+     
 
-               COMMIT;
-            END IF;
-         END LOOP;
+EXCEPTION
+    WHEN OTHERS THEN
+        l_err_msg := SQLERRM;
+        DBMS_OUTPUT.PUT_LINE('Fatal error: '||l_err_msg);
+        ROLLBACK;
+END;
 
-         UPDATE Rpt_Load_Detail_Log
-            SET Process_End_Dt = SYSDATE,
-                Status = 'RUNNING',
-                Number_Of_Rows = v_Batch_Ctr
-          WHERE Process_Id = I_Process_Id AND Table_Name = 'REPORT_PTS_CASE';
-
-         COMMIT;
-      END LOOP;
-
-
-      UPDATE Rpt_Load_Detail_Log
-         SET Process_End_Dt = SYSDATE,
-             Status = 'COMPLETED',
-             Number_Of_Rows = v_Batch_Ctr
-       WHERE Process_Id = I_Process_Id AND Table_Name = 'REPORT_PTS_CASE';
-
-      COMMIT;
-   EXCEPTION
-      WHEN OTHERS
-      THEN
-         v_Err_Msg := SUBSTR (SQLERRM, 1, 1000);
-         ROLLBACK;
-
-         UPDATE Rpt_Load_Detail_Log
-            SET Process_End_Dt = SYSDATE,
-                Status = 'ERROR',
-                MESSAGE =
-                      'Case ID: '
-                   || v_Pts_Res_Group_Id
-                   || ' Error due to: '
-                   || v_Err_Msg
-          WHERE Process_Id = I_Process_Id AND Table_Name = 'REPORT_PTS_CASE';
-
-         COMMIT;
-   END Sp_Load_Rpt_Pts_Case;
