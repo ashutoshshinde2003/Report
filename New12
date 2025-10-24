@@ -1,149 +1,28 @@
-DECLARE
-    l_blob        BLOB;
-    l_file_name   VARCHAR2(255);
-    l_err_msg     VARCHAR2(4000);
-    l_job_id      NUMBER;
-    l_seq_no      NUMBER := 1;
-    l_success     BOOLEAN := TRUE;
-    l_status      VARCHAR2(20);
-    l_row_count   NUMBER := 0;
-BEGIN
-    -------------------------------------------------------------------
-    -- 1. Get uploaded file from APEX temp files using filename
-    -------------------------------------------------------------------
-    SELECT blob_content, filename
-      INTO l_blob, l_file_name
-      FROM apex_application_temp_files
-     WHERE application_id = :APP_ID
-       AND UPPER(TRIM(filename)) = UPPER(TRIM(:P21_FILE_NAME));
-
-    -------------------------------------------------------------------
-    -- 2. Generate JOB_ID from your sequence
-    -------------------------------------------------------------------
-    SELECT bulk_resolution_seq.NEXTVAL INTO l_job_id FROM dual;
-
-    -------------------------------------------------------------------
-    -- 3. Insert header record
-    -------------------------------------------------------------------
-    INSERT INTO eres_bulk_res_upload_smry (
-        job_id, created_by, created_dt, job_status
-    ) VALUES (
-        l_job_id, :APP_USER, SYSDATE, 'PENDING'
-    );
-
-    -------------------------------------------------------------------
-    -- 4. Parse Excel and insert each record
-    -------------------------------------------------------------------
-    FOR rec IN (
-        SELECT 
-            NULLIF(TRIM(col001), '') AS pts_res_group_id   -- ✅ handles blank/cleared cells
-          FROM TABLE(
-            apex_data_parser.parse(
-                p_content   => l_blob,
-                p_file_name => l_file_name,
-                p_skip_rows => 1
-            )
-          )
-    )
-    LOOP
-        l_seq_no   := l_seq_no + 1;
-        l_row_count := l_row_count + 1;
-
-        BEGIN
-            -- ✅ Always insert row, classify VALID vs INVALID
-            IF rec.pts_res_group_id IS NULL THEN
-                INSERT INTO eres_bulk_res_upload_detail (
-                    job_id, seq_no, pts_res_group_id, row_status
-                ) VALUES (
-                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID'
-                );
-                l_success := FALSE;
-
-            ELSIF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') THEN
-                INSERT INTO eres_bulk_res_upload_detail (
-                    job_id, seq_no, pts_res_group_id, row_status
-                ) VALUES (
-                    l_job_id, l_seq_no, rec.pts_res_group_id, 'VALID'
-                );
-            ELSE
-                INSERT INTO eres_bulk_res_upload_detail (
-                    job_id, seq_no, pts_res_group_id, row_status
-                ) VALUES (
-                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID'
-                );
-                l_success := FALSE;
-            END IF;
-
-        EXCEPTION
-            WHEN OTHERS THEN
-                l_success := FALSE;
-                l_err_msg := SQLERRM;
-                DBMS_OUTPUT.PUT_LINE(
-                    'Error inserting row ' || l_seq_no || ' : ' || l_err_msg
-                );
-        END;
-    END LOOP;
-
-    -------------------------------------------------------------------
-    -- 5. Cleanup uploaded temp file (optional)
-    -------------------------------------------------------------------
-    DELETE FROM apex_application_temp_files
-     WHERE UPPER(TRIM(filename)) = UPPER(TRIM(l_file_name));
-
-    -------------------------------------------------------------------
-    -- 6. Update header status
-    -------------------------------------------------------------------
-    IF l_success THEN
-        l_status := 'SCHEDULED';
-    ELSE
-        l_status := 'SCHEDULED';
-    END IF;
-
-    UPDATE eres_bulk_res_upload_smry
-       SET job_status = l_status
-     WHERE job_id = l_job_id;
-
-    COMMIT;
-
-    -------------------------------------------------------------------
-    -- 7. Set page items
-    -------------------------------------------------------------------
-    :P21_NEW_1_JOBID := l_job_id;
-    :JOB_ID          := :P21_NEW_1_JOBID;
-    :TOTAL_ROW_COUNT := l_row_count;
-    :TOTAL_COUNT     := l_row_count;
-
-EXCEPTION
-    WHEN OTHERS THEN
-        l_err_msg := SQLERRM;
-        DBMS_OUTPUT.PUT_LINE('Fatal error: ' || l_err_msg);
-        ROLLBACK;
-END;
-/
-
-
-
-
-
-
-
-
-
-// this.triggeringElement is the input[type=file] DOM element
-(function(){
-  try {
-    var el = this.triggeringElement || this.sourceElement || document.getElementById('P21_FILE_UPLOAD');
-    if(!el) return;
-    var f = el.files && el.files[0];
-    if(f) {
-      // set the page item with the filename
-      apex.item('P21_FILE_NAME').setValue(f.name);
-    } else {
-      // fallback: clear page item if no file chosen
-      apex.item('P21_FILE_NAME').setValue('');
-    }
-  } catch(e){
-    // debug if required
-    console.warn('Capture filename error', e);
-  }
-}).call(this);
+SELECT
+  ROW_NUMBER() OVER (ORDER BY work_of_dt ASC) AS SL_NO,
+  pts_data.pts_res_group_id,
+  pts_data.mer_num,
+  pts_data.us_currency_amt,
+  pts_data.trn_dt,
+  pts_data.susp_reas_cd,
+  pts_data.work_of_dt,
+  pts_data.case_status_id,
+  pts_data.status
+FROM (
+  SELECT
+    br1.pts_res_group_id,
+    MAX(pts.mer_num)        AS mer_num,
+    SUM(pts.us_currency_amt) AS us_currency_amt,
+    MAX(pts.trn_dt)         AS trn_dt,
+    MAX(pts.susp_reas_cd)   AS susp_reas_cd,
+    MAX(pts.work_of_dt)     AS work_of_dt,
+    MAX(pts.case_status_id) AS case_status_id,
+    DECODE(MAX(pts.case_status_id), 20, 'Already Closed', 10, 'Resolution Pending', 'Scheduled') AS status
+  FROM apex_mod.eres_bulk_res_upload_detail br1
+  JOIN eresuser_owner.pts_case pts
+    ON TO_NUMBER(br1.pts_res_group_id) = pts.pts_res_group_id
+  WHERE br1.job_id = :P22_NEW_JOB_ID
+    AND br1.row_status = 'VALID'
+  GROUP BY br1.pts_res_group_id
+) pts_data
+ORDER BY work_of_dt ASC
