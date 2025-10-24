@@ -1,57 +1,16 @@
-SELECT
-  ROW_NUMBER() OVER (ORDER BY work_of_dt ASC) AS SL_NO,
-  pts_data.pts_res_group_id,
-  pts_data.mer_num,
-  pts_data.us_currency_amt,
-  pts_data.trn_dt,
-  pts_data.susp_reas_cd,
-  pts_data.work_of_dt,
-  pts_data.case_status_id,
-  pts_data.status
-FROM (
-  SELECT
-    br1.pts_res_group_id,
-    MAX(pts.mer_num)        AS mer_num,
-    SUM(pts.us_currency_amt) AS us_currency_amt,
-    MAX(pts.trn_dt)         AS trn_dt,
-    MAX(pts.susp_reas_cd)   AS susp_reas_cd,
-    MAX(pts.work_of_dt)     AS work_of_dt,
-    MAX(pts.case_status_id) AS case_status_id,
-    DECODE(MAX(pts.case_status_id), 20, 'Already Closed', 10, 'Resolution Pending', 'Scheduled') AS status
-  FROM apex_mod.eres_bulk_res_upload_detail br1
-  JOIN eresuser_owner.pts_case pts
-    ON TO_NUMBER(br1.pts_res_group_id) = pts.pts_res_group_id
-  WHERE br1.job_id = :P22_NEW_JOB_ID
-    AND br1.row_status = 'VALID'
-  GROUP BY br1.pts_res_group_id
-) pts_data
-ORDER BY work_of_dt ASC
-
-
-
-
-
-
-
-
-
-
-
-
-SELECT
-  ROW_NUMBER() OVER (ORDER BY work_of_dt ASC) AS SL_NO,
-  d.pts_res_group_id,
-  d.mer_num,
-  d.us_currency_amt,
-  d.trn_dt,
-  d.susp_reas_cd,
-  d.work_of_dt,
-  d.case_status_id,
-  DECODE(d.case_status_id,
-         20, 'Already Closed',
-         10, 'Resolution Pending',
-         'Scheduled') AS status
-FROM apex_mod.eres_bulk_res_upload_detail d
-WHERE d.job_id = :P22_NEW_JOB_ID
-  AND d.row_status = 'VALID'
-ORDER BY d.work_of_dt ASC;
+<div style="text-align:center; font-size:20px; font-weight:bold; color:#333;">
+  <div style="
+      display:flex;
+      flex-wrap:nowrap;
+      justify-content:center;
+      align-items:center;
+      gap:40px;
+  ">
+    <div style="background-color:#f4f4f4; padding:10px 20px; border-radius:8px; min-width:150px;">
+      JOB ID: &P40_JOB_ID.
+    </div>
+    <div style="background-color:#6082B6; color:white; padding:10px 20px; border-radius:8px; min-width:150px;">
+      JOB STATUS: &P40_JOB_STATUS.
+    </div>
+  </div>
+</div>
