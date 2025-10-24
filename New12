@@ -1,16 +1,68 @@
-<div style="text-align:center; font-size:20px; font-weight:bold; color:#333;">
+<div style ="
+            text-align:left;
+            font-size:24px;
+            font-weight:bold;
+            margin-bottom:20px;
+            color:#333;">
+            JOB ID: &P1040_JOB_ID.</div>
+<div style="display:flex; gap:20px; align-items:center; justify-content:center;">
+
+<div style ="text-align:left;
+            font-size:24px;
+            font-weight:bold;
+            margin-bottom:20px;
+            color:#333;">
+            JOB STATUS: &P1040_JOB_STATUS.</div>
+<div style="display:flex; gap:20px; align-items:center; justify-content:center;">
+
   <div style="
-      display:flex;
-      flex-wrap:nowrap;
-      justify-content:center;
-      align-items:center;
-      gap:40px;
-  ">
-    <div style="background-color:#f4f4f4; padding:10px 20px; border-radius:8px; min-width:150px;">
-      JOB ID: &P40_JOB_ID.
-    </div>
-    <div style="background-color:#6082B6; color:white; padding:10px 20px; border-radius:8px; min-width:150px;">
-      JOB STATUS: &P40_JOB_STATUS.
-    </div>
+       background-color:#6082B6;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Total Records  
+    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_TOTAL_RECORDS.</div>
   </div>
+<div style="display:flex; gap:20px; align-items:center; justify-content:center;">
+  <div style="
+       background-color:#4CAF50;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Successful/Pending  
+    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_VALID_RECORDS.</div>
+  </div>
+
+  <div style="
+       background-color:#FFAC1C;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Failed
+    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_FAILED_RECORDS.</div>
+  </div>
+
+
+    <div style="
+       background-color:#F44336;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Invalid Records
+    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_INVALID_RECORDS.</div>
+  </div>
+
+
 </div>
