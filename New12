@@ -26,3 +26,32 @@ FROM (
   GROUP BY br1.pts_res_group_id
 ) pts_data
 ORDER BY work_of_dt ASC
+
+
+
+
+
+
+
+
+
+
+
+
+SELECT
+  ROW_NUMBER() OVER (ORDER BY work_of_dt ASC) AS SL_NO,
+  d.pts_res_group_id,
+  d.mer_num,
+  d.us_currency_amt,
+  d.trn_dt,
+  d.susp_reas_cd,
+  d.work_of_dt,
+  d.case_status_id,
+  DECODE(d.case_status_id,
+         20, 'Already Closed',
+         10, 'Resolution Pending',
+         'Scheduled') AS status
+FROM apex_mod.eres_bulk_res_upload_detail d
+WHERE d.job_id = :P22_NEW_JOB_ID
+  AND d.row_status = 'VALID'
+ORDER BY d.work_of_dt ASC;
