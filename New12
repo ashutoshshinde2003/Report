@@ -66,3 +66,83 @@
 
 
 </div>
+
+
+
+
+
+
+<div style="display:flex; justify-content:center; align-items:center; gap:60px; margin-bottom:20px;">
+
+  <!-- JOB ID -->
+  <div style="
+        text-align:left;
+        font-size:24px;
+        font-weight:bold;
+        color:#333;">
+        JOB ID: &P1040_JOB_ID.
+  </div>
+
+  <!-- JOB STATUS -->
+  <div style="
+        text-align:left;
+        font-size:24px;
+        font-weight:bold;
+        color:#333;">
+        JOB STATUS: &P1040_JOB_STATUS.
+  </div>
+
+</div>
+
+<!-- Stats Cards -->
+<div style="display:flex; gap:20px; align-items:center; justify-content:center; flex-wrap:wrap;">
+
+  <div style="
+       background-color:#6082B6;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Total Records  
+    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_TOTAL_RECORDS.</div>
+  </div>
+
+  <div style="
+       background-color:#4CAF50;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Successful/Pending  
+    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_VALID_RECORDS.</div>
+  </div>
+
+  <div style="
+       background-color:#FFAC1C;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Failed
+    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_FAILED_RECORDS.</div>
+  </div>
+
+  <div style="
+       background-color:#F44336;
+       color:white;
+       padding:20px;
+       border-radius:30px;
+       font-size:20px;
+       min-width:175px;
+       text-align:center;">
+     Invalid Records
+    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_INVALID_RECORDS.</div>
+  </div>
+
+</div>
