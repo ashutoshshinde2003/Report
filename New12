@@ -1,27 +1,18 @@
-   update eresuser_owner.eres_bulk_res_upload_detail d
-set d.row_status = 
-case 
-when exists(select 1
-from eresuser_owner.pts_case p 
-where to_number(d.pts_res_group_id)= p.pts_res_group_id
-and (
-    case 
-    when :P1040_SYSTEM = 'NORTH'
-    then
-    p.platform_cd in ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C')
-    when :P1040_SYSTEM = 'SOUTH'
-    then
-    p.platform_cd in ('SO')
-    when :P1040_SYSTEM = 'MEMPHIS'
-    then
-    p.platform_cd in ('MC','MW','MB','MJ','MU')
-    when :P1040_SYSTEM = 'PROPRIETARY'
-    then
-    p.platform_cd in ('PR')
-    else
-    1=2
-)
-)THEN 'VALID'
-ELSE 'INVALID'
-END
-where d.job_id = l_job_id;
+UPDATE eresuser_owner.eres_bulk_res_upload_detail d
+   SET d.row_status =
+       CASE 
+         WHEN EXISTS (
+           SELECT 1
+             FROM eresuser_owner.pts_case p 
+            WHERE TO_NUMBER(d.pts_res_group_id) = p.pts_res_group_id
+              AND (
+                     (:P1040_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
+                  OR (:P1040_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO'))
+                  OR (:P1040_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU'))
+                  OR (:P1040_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR'))
+                 )
+         )
+         THEN 'VALID'
+         ELSE 'INVALID'
+       END
+ WHERE d.job_id = :P1040_JOB_ID;
