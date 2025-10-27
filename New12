@@ -1,148 +1,72 @@
-<div style ="
-            text-align:left;
-            font-size:24px;
-            font-weight:bold;
-            margin-bottom:20px;
-            color:#333;">
-            JOB ID: &P1040_JOB_ID.</div>
-<div style="display:flex; gap:20px; align-items:center; justify-content:center;">
+CREATE OR REPLACE FUNCTION ERESUSER_OWNER.log_error (vErrStack_in IN VARCHAR2,
+                                                     vCallStack_in IN VARCHAR2,
+                                                     nApplId_in IN NUMBER,
+                                                     nErrTypeCd_in IN NUMBER DEFAULT 0,
+                                                     vErrComment_in IN VARCHAR2 DEFAULT '',
+                                                     bCommit_in IN BOOLEAN DEFAULT TRUE
+)
+   RETURN NUMBER
+IS
+PRAGMA autonomous_transaction;
+   /******************************************************************************
+      NAME:       log_error
+      PURPOSE:    Log any error to the global error log.
 
-<div style ="text-align:left;
-            font-size:24px;
-            font-weight:bold;
-            margin-bottom:20px;
-            color:#333;">
-            JOB STATUS: &P1040_JOB_STATUS.</div>
-<div style="display:flex; gap:20px; align-items:center; justify-content:center;">
+      REVISIONS:
+      Ver        Date        Author           Description
+      ---------  ----------  ---------------  ------------------------------------
+      1.0        11/30/2006  S. Kubik         1. Created this procedure.
 
-  <div style="
-       background-color:#6082B6;
-       color:white;
-       padding:20px;
-       border-radius:30px;
-       font-size:20px;
-       min-width:175px;
-       text-align:center;">
-     Total Records  
-    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_TOTAL_RECORDS.</div>
-  </div>
-<div style="display:flex; gap:20px; align-items:center; justify-content:center;">
-  <div style="
-       background-color:#4CAF50;
-       color:white;
-       padding:20px;
-       border-radius:30px;
-       font-size:20px;
-       min-width:175px;
-       text-align:center;">
-     Successful/Pending  
-    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_VALID_RECORDS.</div>
-  </div>
+      NOTES:
 
-  <div style="
-       background-color:#FFAC1C;
-       color:white;
-       padding:20px;
-       border-radius:30px;
-       font-size:20px;
-       min-width:175px;
-       text-align:center;">
-     Failed
-    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_FAILED_RECORDS.</div>
-  </div>
+   ******************************************************************************/
+   nGlobalErrorLogId   NUMBER;
+BEGIN
+   SELECT SEQ_GLOBALERROR_ID.NEXTVAL
+   INTO nGlobalErrorLogId
+   FROM DUAL;
+   
+   DBMS_OUTPUT.PUT_LINE ('nGlobalErrorLogId ' ||nGlobalErrorLogId );
+   DBMS_OUTPUT.PUT_LINE ('vErrStack_in ' ||vErrStack_in );
+   DBMS_OUTPUT.PUT_LINE ('vCallStack_in ' ||vCallStack_in );
+   DBMS_OUTPUT.PUT_LINE ('nApplId_in ' ||nApplId_in );
+   DBMS_OUTPUT.PUT_LINE ('nErrTypeCd_in ' ||nErrTypeCd_in );
+   DBMS_OUTPUT.PUT_LINE ('vErrComment_in ' ||vErrComment_in );
+ 
+   
+   
+   DBMS_OUTPUT.PUT_LINE('LINE 29 :'||'nGlobalErrorLogId:'||nGlobalErrorLogId||'vErrStack_in:'||vErrStack_in||'vCallStack_in:'||vCallStack_in||'nApplId_in:'||nApplId_in||'nErrTypeCd_in:'||nErrTypeCd_in
+   ||'vErrComment_in:'||vErrComment_in);
 
+   INSERT INTO global_error_log
+  (
+      err_seq_id, err_dt, err_stack, call_stack, appl_id, err_type_cd, err_comment
+  )
+   VALUES (nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in, nApplId_in, nErrTypeCd_in, vErrComment_in);
+commit;
+   /*IF bCommit_in THEN
+     -- function used in trigger on load_verification.
+     -- cannot commit from a trigger
+     COMMIT;
+   END IF; */
+   dbms_output.put_line('line no:43:'||nGlobalErrorLogId);
+   RETURN nGlobalErrorLogId;
+EXCEPTION
+   WHEN OTHERS
+   THEN
+      SELECT SEQ_GLOBALERROR_ID.NEXTVAL
+      INTO nGlobalErrorLogId
+      FROM DUAL;
 
-    <div style="
-       background-color:#F44336;
-       color:white;
-       padding:20px;
-       border-radius:30px;
-       font-size:20px;
-       min-width:175px;
-       text-align:center;">
-     Invalid Records
-    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_INVALID_RECORDS.</div>
-  </div>
+      -- Consider logging the error and then re-raise
+      INSERT INTO global_error_log
+     (
+         err_seq_id, err_dt, err_stack, call_stack, appl_id, err_comment
+     )
+      VALUES (nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in, nApplId_in, vErrComment_in);
 
-
-</div>
-
-
-
-
+      RAISE;
+      RETURN nGlobalErrorLogId;
+END log_error;
 
 
-<div style="display:flex; justify-content:center; align-items:center; gap:60px; margin-bottom:20px;">
-
-  <!-- JOB ID -->
-  <div style="
-        text-align:left;
-        font-size:24px;
-        font-weight:bold;
-        color:#333;">
-        JOB ID: &P1040_JOB_ID.
-  </div>
-
-  <!-- JOB STATUS -->
-  <div style="
-        text-align:left;
-        font-size:24px;
-        font-weight:bold;
-        color:#333;">
-        JOB STATUS: &P1040_JOB_STATUS.
-  </div>
-
-</div>
-
-<!-- Stats Cards -->
-<div style="display:flex; gap:20px; align-items:center; justify-content:center; flex-wrap:wrap;">
-
-  <div style="
-       background-color:#6082B6;
-       color:white;
-       padding:20px;
-       border-radius:30px;
-       font-size:20px;
-       min-width:175px;
-       text-align:center;">
-     Total Records  
-    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_TOTAL_RECORDS.</div>
-  </div>
-
-  <div style="
-       background-color:#4CAF50;
-       color:white;
-       padding:20px;
-       border-radius:30px;
-       font-size:20px;
-       min-width:175px;
-       text-align:center;">
-     Successful/Pending  
-    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_VALID_RECORDS.</div>
-  </div>
-
-  <div style="
-       background-color:#FFAC1C;
-       color:white;
-       padding:20px;
-       border-radius:30px;
-       font-size:20px;
-       min-width:175px;
-       text-align:center;">
-     Failed
-    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_FAILED_RECORDS.</div>
-  </div>
-
-  <div style="
-       background-color:#F44336;
-       color:white;
-       padding:20px;
-       border-radius:30px;
-       font-size:20px;
-       min-width:175px;
-       text-align:center;">
-     Invalid Records
-    <div style="font-size:40px; font-weight:bold;">&P1040_COUNT_INVALID_RECORDS.</div>
-  </div>
-
-</div>
