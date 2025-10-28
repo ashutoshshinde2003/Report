@@ -1,18 +1,16 @@
-   UPDATE eresuser_owner.eres_bulk_res_upload_detail d
-   SET d.row_status =
-       CASE 
-         WHEN EXISTS (
-           SELECT 1
-             FROM eresuser_owner.pts_case p 
-            WHERE TO_NUMBER(d.pts_res_group_id) = to_number(p.pts_res_group_id)
-              AND (
-                     (:P1039_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
-                  OR (:P1039_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO'))
-                  OR (:P1039_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU'))
-                  OR (:P1039_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR'))
-                 )
-         )
-         THEN 'PENDING'
-         ELSE 'INVALID'
-       END
- WHERE d.job_id = l_job_id;
+MERGE INTO eresuser_owner.eres_bulk_res_upload_detail d
+USING (
+  SELECT DISTINCT
+         TO_NUMBER(p.pts_res_group_id) AS pts_res_group_id,
+         CASE 
+           WHEN (:P1039_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C')) THEN 'PENDING'
+           WHEN (:P1039_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO')) THEN 'PENDING'
+           WHEN (:P1039_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU')) THEN 'PENDING'
+           WHEN (:P1039_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR')) THEN 'PENDING'
+           ELSE 'INVALID'
+         END AS calc_status
+    FROM eresuser_owner.pts_case p
+) p
+ON (TO_NUMBER(d.pts_res_group_id) = p.pts_res_group_id AND d.job_id = :P1039_JOB_ID)
+WHEN MATCHED THEN
+  UPDATE SET d.row_status = p.calc_status;
