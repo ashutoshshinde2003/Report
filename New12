@@ -8,7 +8,7 @@ IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') AND rec.pts_res_group_id IS NOT NU
             pc.susp_reas_cd || ' ' || pc.susp_reas_cd2 || ' ' || pc.susp_reas_cd3 AS susp_reas_cd,
             pc.case_status_id,
             aref.alliance_name,
-            aref.ui_platform_cd
+            TRIM(UPPER(aref.ui_platform_cd)) AS ui_platform_cd
         INTO 
             l_mer_num,
             l_work_of_dt,
@@ -47,7 +47,7 @@ IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') AND rec.pts_res_group_id IS NOT NU
 
     ELSE
         ----------------------------------------------------------------
-        -- ✅ Fully merged logic: insert + system-based platform validation
+        -- ✅ Fully merged logic: insert + fixed platform validation
         ----------------------------------------------------------------
         INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
             job_id, seq_no, pts_res_group_id, row_status,
@@ -58,6 +58,7 @@ IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') AND rec.pts_res_group_id IS NOT NU
             l_job_id,
             l_seq_no,
             rec.pts_res_group_id,
+
             CASE
                 WHEN l_case_status_id IN (10, 20) THEN 'INVALID'
                 WHEN (
@@ -66,8 +67,10 @@ IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') AND rec.pts_res_group_id IS NOT NU
                    OR (:P1039_SYSTEM = 'MEMPHIS' AND l_ui_platform_cd IN ('MC','MW','MB','MJ','MU'))
                    OR (:P1039_SYSTEM = 'PROPRIETARY' AND l_ui_platform_cd IN ('PR'))
                  ) THEN 'PENDING'
+                WHEN l_ui_platform_cd IS NULL THEN 'INVALID'
                 ELSE 'INVALID'
             END AS row_status,
+
             l_mer_num,
             l_us_currency_amt,
             l_trn_dt,
@@ -75,8 +78,10 @@ IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') AND rec.pts_res_group_id IS NOT NU
             l_susp_reas_cd,
             l_case_status_id,
             l_alliance_name,
+
             CASE
                 WHEN l_case_status_id IN (10, 20) THEN 'Action Taken or Case Closed'
+                WHEN l_ui_platform_cd IS NULL THEN 'Missing Platform Code'
                 WHEN (
                       (:P1039_SYSTEM = 'NORTH' AND l_ui_platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
                    OR (:P1039_SYSTEM = 'SOUTH' AND l_ui_platform_cd IN ('SO'))
