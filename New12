@@ -1,72 +1,95 @@
-CREATE OR REPLACE FUNCTION ERESUSER_OWNER.log_error (vErrStack_in IN VARCHAR2,
-                                                     vCallStack_in IN VARCHAR2,
-                                                     nApplId_in IN NUMBER,
-                                                     nErrTypeCd_in IN NUMBER DEFAULT 0,
-                                                     vErrComment_in IN VARCHAR2 DEFAULT '',
-                                                     bCommit_in IN BOOLEAN DEFAULT TRUE
+CREATE OR REPLACE FUNCTION ERESUSER_OWNER.log_error (
+    vErrStack_in     IN VARCHAR2,
+    vCallStack_in    IN VARCHAR2,
+    nApplId_in       IN NUMBER,
+    nErrTypeCd_in    IN NUMBER DEFAULT 0,
+    vErrComment_in   IN VARCHAR2 DEFAULT '',
+    nJobId_in        IN NUMBER DEFAULT NULL,       -- ✅ New Job ID parameter
+    bCommit_in       IN BOOLEAN DEFAULT TRUE,
+    vEmailRecipient  IN VARCHAR2 DEFAULT NULL      -- ✅ Optional email
 )
-   RETURN NUMBER
+RETURN NUMBER
 IS
-PRAGMA autonomous_transaction;
-   /******************************************************************************
-      NAME:       log_error
-      PURPOSE:    Log any error to the global error log.
-
-      REVISIONS:
-      Ver        Date        Author           Description
-      ---------  ----------  ---------------  ------------------------------------
-      1.0        11/30/2006  S. Kubik         1. Created this procedure.
-
-      NOTES:
-
-   ******************************************************************************/
+   PRAGMA autonomous_transaction;
    nGlobalErrorLogId   NUMBER;
 BEGIN
    SELECT SEQ_GLOBALERROR_ID.NEXTVAL
    INTO nGlobalErrorLogId
    FROM DUAL;
-   
+
    DBMS_OUTPUT.PUT_LINE ('nGlobalErrorLogId ' ||nGlobalErrorLogId );
    DBMS_OUTPUT.PUT_LINE ('vErrStack_in ' ||vErrStack_in );
    DBMS_OUTPUT.PUT_LINE ('vCallStack_in ' ||vCallStack_in );
    DBMS_OUTPUT.PUT_LINE ('nApplId_in ' ||nApplId_in );
    DBMS_OUTPUT.PUT_LINE ('nErrTypeCd_in ' ||nErrTypeCd_in );
    DBMS_OUTPUT.PUT_LINE ('vErrComment_in ' ||vErrComment_in );
- 
-   
-   
-   DBMS_OUTPUT.PUT_LINE('LINE 29 :'||'nGlobalErrorLogId:'||nGlobalErrorLogId||'vErrStack_in:'||vErrStack_in||'vCallStack_in:'||vCallStack_in||'nApplId_in:'||nApplId_in||'nErrTypeCd_in:'||nErrTypeCd_in
-   ||'vErrComment_in:'||vErrComment_in);
+   DBMS_OUTPUT.PUT_LINE ('nJobId_in ' ||nJobId_in );
+
+   DBMS_OUTPUT.PUT_LINE('LINE 29 :'||'nGlobalErrorLogId:'||nGlobalErrorLogId||
+     ' vErrStack_in:'||vErrStack_in||
+     ' vCallStack_in:'||vCallStack_in||
+     ' nApplId_in:'||nApplId_in||
+     ' nErrTypeCd_in:'||nErrTypeCd_in||
+     ' vErrComment_in:'||vErrComment_in||
+     ' nJobId_in:'||nJobId_in);
 
    INSERT INTO global_error_log
-  (
-      err_seq_id, err_dt, err_stack, call_stack, appl_id, err_type_cd, err_comment
-  )
-   VALUES (nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in, nApplId_in, nErrTypeCd_in, vErrComment_in);
-commit;
-   /*IF bCommit_in THEN
-     -- function used in trigger on load_verification.
-     -- cannot commit from a trigger
-     COMMIT;
-   END IF; */
-   dbms_output.put_line('line no:43:'||nGlobalErrorLogId);
+   (
+      err_seq_id, err_dt, err_stack, call_stack, appl_id,
+      err_type_cd, err_comment, job_id         -- ✅ added job_id
+   )
+   VALUES (
+      nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in,
+      nApplId_in, nErrTypeCd_in, vErrComment_in, nJobId_in
+   );
+
+   ----------------------------------------------------------------
+   -- ✅ Optional email notification
+   ----------------------------------------------------------------
+   IF vEmailRecipient IS NOT NULL THEN
+      BEGIN
+         UTL_MAIL.send (
+             sender     => 'no-reply@yourdomain.com',
+             recipients => vEmailRecipient,
+             subject    => 'Error Logged: ID ' || nGlobalErrorLogId ||
+                           CASE WHEN nJobId_in IS NOT NULL THEN ' | Job '||nJobId_in ELSE '' END,
+             message    =>
+                'Date: ' || TO_CHAR(SYSDATE,'DD-MON-YYYY HH24:MI:SS') || CHR(10) ||
+                'Application ID: ' || nApplId_in || CHR(10) ||
+                'Job ID: ' || NVL(TO_CHAR(nJobId_in),'N/A') || CHR(10) ||
+                'Error Type: ' || nErrTypeCd_in || CHR(10) ||
+                'Error Stack: ' || vErrStack_in || CHR(10) ||
+                'Call Stack: ' || vCallStack_in || CHR(10) ||
+                'Comment: ' || vErrComment_in
+         );
+      EXCEPTION
+         WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Email failed: '||SQLERRM);
+      END;
+   END IF;
+
+   COMMIT;
+
+   DBMS_OUTPUT.PUT_LINE('line no:43:'||nGlobalErrorLogId);
    RETURN nGlobalErrorLogId;
+
 EXCEPTION
-   WHEN OTHERS
-   THEN
+   WHEN OTHERS THEN
       SELECT SEQ_GLOBALERROR_ID.NEXTVAL
       INTO nGlobalErrorLogId
       FROM DUAL;
 
-      -- Consider logging the error and then re-raise
       INSERT INTO global_error_log
-     (
-         err_seq_id, err_dt, err_stack, call_stack, appl_id, err_comment
-     )
-      VALUES (nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in, nApplId_in, vErrComment_in);
+      (
+         err_seq_id, err_dt, err_stack, call_stack, appl_id,
+         err_comment, job_id        -- ✅ included here too
+      )
+      VALUES (
+         nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in,
+         nApplId_in, vErrComment_in, nJobId_in
+      );
 
       RAISE;
       RETURN nGlobalErrorLogId;
 END log_error;
 /
-
