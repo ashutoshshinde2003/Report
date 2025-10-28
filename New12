@@ -1,16 +1,32 @@
+-- Step 1: Mark matching ones as PENDING
 MERGE INTO eresuser_owner.eres_bulk_res_upload_detail d
 USING (
   SELECT DISTINCT
-         TO_NUMBER(p.pts_res_group_id) AS pts_res_group_id,
-         CASE 
-           WHEN (:P1039_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C')) THEN 'PENDING'
-           WHEN (:P1039_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO')) THEN 'PENDING'
-           WHEN (:P1039_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU')) THEN 'PENDING'
-           WHEN (:P1039_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR')) THEN 'PENDING'
-           ELSE 'INVALID'
-         END AS calc_status
+         TO_NUMBER(p.pts_res_group_id) AS pts_res_group_id
     FROM eresuser_owner.pts_case p
+   WHERE (
+           (:P1039_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
+        OR (:P1039_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO'))
+        OR (:P1039_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU'))
+        OR (:P1039_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR'))
+       )
 ) p
 ON (TO_NUMBER(d.pts_res_group_id) = p.pts_res_group_id AND d.job_id = :P1039_JOB_ID)
 WHEN MATCHED THEN
-  UPDATE SET d.row_status = p.calc_status;
+  UPDATE SET d.row_status = 'PENDING';
+
+-- Step 2: Mark non-matching ones as INVALID
+UPDATE eresuser_owner.eres_bulk_res_upload_detail d
+   SET d.row_status = 'INVALID'
+ WHERE d.job_id = :P1039_JOB_ID
+   AND NOT EXISTS (
+         SELECT 1
+           FROM eresuser_owner.pts_case p
+          WHERE TO_NUMBER(d.pts_res_group_id) = TO_NUMBER(p.pts_res_group_id)
+            AND (
+                 (:P1039_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
+              OR (:P1039_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO'))
+              OR (:P1039_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU'))
+              OR (:P1039_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR'))
+               )
+       );
