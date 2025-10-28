@@ -1,18 +1,18 @@
-UPDATE eresuser_owner.eres_bulk_res_upload_detail d
+   UPDATE eresuser_owner.eres_bulk_res_upload_detail d
    SET d.row_status =
        CASE 
          WHEN EXISTS (
            SELECT 1
              FROM eresuser_owner.pts_case p 
-            WHERE TO_NUMBER(d.pts_res_group_id) = p.pts_res_group_id
+            WHERE TO_NUMBER(d.pts_res_group_id) = to_number(p.pts_res_group_id)
               AND (
-                     (:P1040_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
-                  OR (:P1040_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO'))
-                  OR (:P1040_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU'))
-                  OR (:P1040_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR'))
+                     (:P1039_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
+                  OR (:P1039_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO'))
+                  OR (:P1039_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU'))
+                  OR (:P1039_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR'))
                  )
          )
-         THEN 'VALID'
+         THEN 'PENDING'
          ELSE 'INVALID'
        END
- WHERE d.job_id = :P1040_JOB_ID;
+ WHERE d.job_id = l_job_id;
