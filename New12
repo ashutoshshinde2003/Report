@@ -1,72 +1,73 @@
-CREATE OR REPLACE FUNCTION ERESUSER_OWNER.log_error (vErrStack_in IN VARCHAR2,
-                                                     vCallStack_in IN VARCHAR2,
-                                                     nApplId_in IN NUMBER,
-                                                     nErrTypeCd_in IN NUMBER DEFAULT 0,
-                                                     vErrComment_in IN VARCHAR2 DEFAULT '',
-                                                     bCommit_in IN BOOLEAN DEFAULT TRUE
-)
-   RETURN NUMBER
-IS
-PRAGMA autonomous_transaction;
-   /******************************************************************************
-      NAME:       log_error
-      PURPOSE:    Log any error to the global error log.
-
-      REVISIONS:
-      Ver        Date        Author           Description
-      ---------  ----------  ---------------  ------------------------------------
-      1.0        11/30/2006  S. Kubik         1. Created this procedure.
-
-      NOTES:
-
-   ******************************************************************************/
-   nGlobalErrorLogId   NUMBER;
+DECLARE
+    v_job_id        NUMBER := :P1040_JOB_ID; -- or pass as parameter
+    v_invalid_count NUMBER;
+    v_sched_time    VARCHAR2(100);
+    v_recipients    VARCHAR2(4000) := 'support@yourdomain.com'; -- can be page item too
+    v_mail_subject  VARCHAR2(500);
+    v_mail_body     CLOB;
 BEGIN
-   SELECT SEQ_GLOBALERROR_ID.NEXTVAL
-   INTO nGlobalErrorLogId
-   FROM DUAL;
-   
-   DBMS_OUTPUT.PUT_LINE ('nGlobalErrorLogId ' ||nGlobalErrorLogId );
-   DBMS_OUTPUT.PUT_LINE ('vErrStack_in ' ||vErrStack_in );
-   DBMS_OUTPUT.PUT_LINE ('vCallStack_in ' ||vCallStack_in );
-   DBMS_OUTPUT.PUT_LINE ('nApplId_in ' ||nApplId_in );
-   DBMS_OUTPUT.PUT_LINE ('nErrTypeCd_in ' ||nErrTypeCd_in );
-   DBMS_OUTPUT.PUT_LINE ('vErrComment_in ' ||vErrComment_in );
- 
-   
-   
-   DBMS_OUTPUT.PUT_LINE('LINE 29 :'||'nGlobalErrorLogId:'||nGlobalErrorLogId||'vErrStack_in:'||vErrStack_in||'vCallStack_in:'||vCallStack_in||'nApplId_in:'||nApplId_in||'nErrTypeCd_in:'||nErrTypeCd_in
-   ||'vErrComment_in:'||vErrComment_in);
+    ---------------------------------------------------------------------
+    -- 1️⃣ Check if any INVALID rows exist for the given job
+    ---------------------------------------------------------------------
+    SELECT COUNT(*)
+      INTO v_invalid_count
+      FROM eresuser_owner.eres_bulk_res_upload_detail
+     WHERE job_id = v_job_id
+       AND UPPER(row_status) = 'INVALID';
 
-   INSERT INTO global_error_log
-  (
-      err_seq_id, err_dt, err_stack, call_stack, appl_id, err_type_cd, err_comment
-  )
-   VALUES (nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in, nApplId_in, nErrTypeCd_in, vErrComment_in);
-commit;
-   /*IF bCommit_in THEN
-     -- function used in trigger on load_verification.
-     -- cannot commit from a trigger
-     COMMIT;
-   END IF; */
-   dbms_output.put_line('line no:43:'||nGlobalErrorLogId);
-   RETURN nGlobalErrorLogId;
+    ---------------------------------------------------------------------
+    -- 2️⃣ If there are invalid rows, fetch scheduled time from summary
+    ---------------------------------------------------------------------
+    IF v_invalid_count > 0 THEN
+        BEGIN
+            SELECT TO_CHAR(created_dt, 'DD-MON-YYYY HH24:MI:SS')
+              INTO v_sched_time
+              FROM eresuser_owner.eres_bulk_res_upload_smry
+             WHERE job_id = v_job_id;
+
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                v_sched_time := 'N/A';
+        END;
+
+        ---------------------------------------------------------------------
+        -- 3️⃣ Build mail subject and body
+        ---------------------------------------------------------------------
+        v_mail_subject := '[AUTO-DNP ALERT] Job ' || v_job_id || ' has INVALID Records';
+
+        v_mail_body :=
+              'Dear Team,' || CHR(10) || CHR(10) ||
+              'Job ID: ' || v_job_id || CHR(10) ||
+              'Status : INVALID' || CHR(10) ||
+              'Scheduled Time: ' || v_sched_time || CHR(10) ||
+              'Invalid Record Count: ' || v_invalid_count || CHR(10) || CHR(10) ||
+              'Please review the job in APEX or check the INVALID rows in table:' || CHR(10) ||
+              'ERES_BULK_RES_UPLOAD_DETAIL.' || CHR(10) || CHR(10) ||
+              'Regards,' || CHR(10) ||
+              'AUTO-DNP Monitoring System';
+
+        ---------------------------------------------------------------------
+        -- 4️⃣ Send the email
+        ---------------------------------------------------------------------
+        BEGIN
+            UTL_MAIL.send(
+                sender     => 'apex-notify@yourdomain.com',
+                recipients => v_recipients,
+                subject    => v_mail_subject,
+                message    => v_mail_body
+            );
+
+            DBMS_OUTPUT.PUT_LINE('Email sent successfully for Job ID: ' || v_job_id);
+
+        EXCEPTION
+            WHEN OTHERS THEN
+                DBMS_OUTPUT.PUT_LINE('⚠️ Email failed: ' || SQLERRM);
+        END;
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('✅ No invalid records found for Job ' || v_job_id || '. No mail sent.');
+    END IF;
+
 EXCEPTION
-   WHEN OTHERS
-   THEN
-      SELECT SEQ_GLOBALERROR_ID.NEXTVAL
-      INTO nGlobalErrorLogId
-      FROM DUAL;
-
-      -- Consider logging the error and then re-raise
-      INSERT INTO global_error_log
-     (
-         err_seq_id, err_dt, err_stack, call_stack, appl_id, err_comment
-     )
-      VALUES (nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in, nApplId_in, vErrComment_in);
-
-      RAISE;
-      RETURN nGlobalErrorLogId;
-END log_error;
-
-
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('❌ Error in email process: ' || SQLERRM);
+END;
