@@ -1,95 +1,119 @@
-CREATE OR REPLACE FUNCTION ERESUSER_OWNER.log_error (
-    vErrStack_in     IN VARCHAR2,
-    vCallStack_in    IN VARCHAR2,
-    nApplId_in       IN NUMBER,
-    nErrTypeCd_in    IN NUMBER DEFAULT 0,
-    vErrComment_in   IN VARCHAR2 DEFAULT '',
-    nJobId_in        IN NUMBER DEFAULT NULL,       -- ✅ New Job ID parameter
-    bCommit_in       IN BOOLEAN DEFAULT TRUE,
-    vEmailRecipient  IN VARCHAR2 DEFAULT NULL      -- ✅ Optional email
-)
-RETURN NUMBER
-IS
-   PRAGMA autonomous_transaction;
-   nGlobalErrorLogId   NUMBER;
-BEGIN
-   SELECT SEQ_GLOBALERROR_ID.NEXTVAL
-   INTO nGlobalErrorLogId
-   FROM DUAL;
+IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') and rec.pts_res_group_id is not NULL THEN
+    BEGIN                        
+               Select pc.mer_Num,
+                                  pc.work_Of_Dt,
+                                  pbr.rej_Amt,
+                                  pc.trn_dt,
+                                     pc.susp_Reas_Cd
+                                  || ' '
+                                  || pc.susp_Reas_Cd2
+                                  || ' '
+                                  || pc.susp_Reas_Cd3
+                                     susp_Reas_Cd,
+                                  pc.case_status_id,
+                                  aref.alliance_name,
+                                  aref.ui_platform_cd
+                              INTO l_mer_num,
+                     l_work_of_dt,
+                     l_us_currency_amt,
+                     l_trn_dt,   
+                     l_susp_reas_cd,
+                     l_case_status_id,
+                     l_Alliance_Name,
+                     l_ui_platform_cd
+                             FROM ERESUSER_OWNER.Pts_Case pc,
+                                  ERESUSER_OWNER.Pts_Alliance_Ref aref,
+                                  ERESUSER_OWNER.pts_Batch_Resolution pbr
+                WHERE pbr.pts_res_group_id = rec.pts_res_group_id
+                AND pc.alliance_id = aref.alliance_id
+                AND pc.pts_res_group_id = pbr.pts_res_group_id
+                AND ROWNUM=1;
+                l_not_Found :=FALSE;
+EXCEPTION WHEN NO_DATA_FOUND
+THEN
+INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status, error_msg
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Improper Data Entered'
+                );
+l_not_Found := TRUE;
+END;   
+if l_not_Found
+THEN
+INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status, error_msg
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Res Group ID not valid'
+                );
+ELSE
+                INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status,mer_num,us_currency_amt,trn_dt,work_of_dt,susp_reas_cd,case_status_id, Alliance_Name, Error_Msg
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 
+                    Case When l_case_status_id in (10,20) THEN 'INVALID'
+                    ELSE 'PENDING'
+                    END,l_mer_num,l_us_currency_amt,l_trn_dt,l_work_of_dt,l_susp_reas_cd,l_case_status_id,  l_Alliance_Name,
+                    Case When l_case_status_id in (10,20) THEN 'Action Taken or Case Closed' END
+                );
+     END IF;                                          
 
-   DBMS_OUTPUT.PUT_LINE ('nGlobalErrorLogId ' ||nGlobalErrorLogId );
-   DBMS_OUTPUT.PUT_LINE ('vErrStack_in ' ||vErrStack_in );
-   DBMS_OUTPUT.PUT_LINE ('vCallStack_in ' ||vCallStack_in );
-   DBMS_OUTPUT.PUT_LINE ('nApplId_in ' ||nApplId_in );
-   DBMS_OUTPUT.PUT_LINE ('nErrTypeCd_in ' ||nErrTypeCd_in );
-   DBMS_OUTPUT.PUT_LINE ('vErrComment_in ' ||vErrComment_in );
-   DBMS_OUTPUT.PUT_LINE ('nJobId_in ' ||nJobId_in );
+            ELSE
+                INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status, error_msg
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Improper Data Entered'
+                );
+            END IF; 
 
-   DBMS_OUTPUT.PUT_LINE('LINE 29 :'||'nGlobalErrorLogId:'||nGlobalErrorLogId||
-     ' vErrStack_in:'||vErrStack_in||
-     ' vCallStack_in:'||vCallStack_in||
-     ' nApplId_in:'||nApplId_in||
-     ' nErrTypeCd_in:'||nErrTypeCd_in||
-     ' vErrComment_in:'||vErrComment_in||
-     ' nJobId_in:'||nJobId_in);
 
-   INSERT INTO global_error_log
-   (
-      err_seq_id, err_dt, err_stack, call_stack, appl_id,
-      err_type_cd, err_comment, job_id         -- ✅ added job_id
-   )
-   VALUES (
-      nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in,
-      nApplId_in, nErrTypeCd_in, vErrComment_in, nJobId_in
-   );
 
-   ----------------------------------------------------------------
-   -- ✅ Optional email notification
-   ----------------------------------------------------------------
-   IF vEmailRecipient IS NOT NULL THEN
-      BEGIN
-         UTL_MAIL.send (
-             sender     => 'no-reply@yourdomain.com',
-             recipients => vEmailRecipient,
-             subject    => 'Error Logged: ID ' || nGlobalErrorLogId ||
-                           CASE WHEN nJobId_in IS NOT NULL THEN ' | Job '||nJobId_in ELSE '' END,
-             message    =>
-                'Date: ' || TO_CHAR(SYSDATE,'DD-MON-YYYY HH24:MI:SS') || CHR(10) ||
-                'Application ID: ' || nApplId_in || CHR(10) ||
-                'Job ID: ' || NVL(TO_CHAR(nJobId_in),'N/A') || CHR(10) ||
-                'Error Type: ' || nErrTypeCd_in || CHR(10) ||
-                'Error Stack: ' || vErrStack_in || CHR(10) ||
-                'Call Stack: ' || vCallStack_in || CHR(10) ||
-                'Comment: ' || vErrComment_in
-         );
-      EXCEPTION
-         WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Email failed: '||SQLERRM);
-      END;
-   END IF;
 
-   COMMIT;
 
-   DBMS_OUTPUT.PUT_LINE('line no:43:'||nGlobalErrorLogId);
-   RETURN nGlobalErrorLogId;
 
-EXCEPTION
-   WHEN OTHERS THEN
-      SELECT SEQ_GLOBALERROR_ID.NEXTVAL
-      INTO nGlobalErrorLogId
-      FROM DUAL;
 
-      INSERT INTO global_error_log
-      (
-         err_seq_id, err_dt, err_stack, call_stack, appl_id,
-         err_comment, job_id        -- ✅ included here too
-      )
-      VALUES (
-         nGlobalErrorLogId, SYSDATE, vErrStack_in, vCallStack_in,
-         nApplId_in, vErrComment_in, nJobId_in
-      );
 
-      RAISE;
-      RETURN nGlobalErrorLogId;
-END log_error;
-/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+MERGE INTO eresuser_owner.eres_bulk_res_upload_detail d
+USING (
+  SELECT DISTINCT
+         p.pts_res_group_id AS pts_res_group_id
+    FROM eresuser_owner.pts_case p
+   WHERE (
+           (:P1039_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
+        OR (:P1039_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO'))
+        OR (:P1039_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU'))
+        OR (:P1039_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR'))
+       )
+) p
+ON (d.pts_res_group_id = p.pts_res_group_id AND d.job_id = l_job_id)
+WHEN MATCHED THEN
+  UPDATE SET d.row_status = 'PENDING';
+
+-- Step 2: Mark non-matching ones as INVALID
+UPDATE eresuser_owner.eres_bulk_res_upload_detail d
+   SET d.row_status = 'INVALID'
+ WHERE d.job_id = l_job_id
+   AND NOT EXISTS (
+         SELECT 1
+           FROM eresuser_owner.pts_case p
+          WHERE d.pts_res_group_id = p.pts_res_group_id
+            AND (
+                 (:P1039_SYSTEM = 'NORTH' AND p.platform_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
+              OR (:P1039_SYSTEM = 'SOUTH' AND p.platform_cd IN ('SO'))
+              OR (:P1039_SYSTEM = 'MEMPHIS' AND p.platform_cd IN ('MC','MW','MB','MJ','MU'))
+              OR (:P1039_SYSTEM = 'PROPRIETARY' AND p.platform_cd IN ('PR'))
+               )
+       );
