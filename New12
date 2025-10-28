@@ -1,13 +1,12 @@
 DECLARE
-    v_job_id        NUMBER := :P1040_JOB_ID; -- or pass as parameter
+    v_job_id        NUMBER := :P1040_JOB_ID;  -- Page item or bind variable
     v_invalid_count NUMBER;
-    v_sched_time    VARCHAR2(100);
-    v_recipients    VARCHAR2(4000) := 'support@yourdomain.com'; -- can be page item too
+    v_recipients    VARCHAR2(4000) := :P1040_EMAIL_TO;  -- Page item for email or static value
     v_mail_subject  VARCHAR2(500);
     v_mail_body     CLOB;
 BEGIN
     ---------------------------------------------------------------------
-    -- 1️⃣ Check if any INVALID rows exist for the given job
+    -- 1️⃣ Check if any INVALID rows exist for this job
     ---------------------------------------------------------------------
     SELECT COUNT(*)
       INTO v_invalid_count
@@ -16,58 +15,45 @@ BEGIN
        AND UPPER(row_status) = 'INVALID';
 
     ---------------------------------------------------------------------
-    -- 2️⃣ If there are invalid rows, fetch scheduled time from summary
+    -- 2️⃣ Send mail only if invalid records exist
     ---------------------------------------------------------------------
     IF v_invalid_count > 0 THEN
-        BEGIN
-            SELECT TO_CHAR(created_dt, 'DD-MON-YYYY HH24:MI:SS')
-              INTO v_sched_time
-              FROM eresuser_owner.eres_bulk_res_upload_smry
-             WHERE job_id = v_job_id;
 
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                v_sched_time := 'N/A';
-        END;
-
-        ---------------------------------------------------------------------
-        -- 3️⃣ Build mail subject and body
-        ---------------------------------------------------------------------
         v_mail_subject := '[AUTO-DNP ALERT] Job ' || v_job_id || ' has INVALID Records';
 
         v_mail_body :=
               'Dear Team,' || CHR(10) || CHR(10) ||
               'Job ID: ' || v_job_id || CHR(10) ||
-              'Status : INVALID' || CHR(10) ||
-              'Scheduled Time: ' || v_sched_time || CHR(10) ||
-              'Invalid Record Count: ' || v_invalid_count || CHR(10) || CHR(10) ||
+              'Status : INVALID' || CHR(10) || CHR(10) ||
               'Please review the job in APEX or check the INVALID rows in table:' || CHR(10) ||
               'ERES_BULK_RES_UPLOAD_DETAIL.' || CHR(10) || CHR(10) ||
               'Regards,' || CHR(10) ||
               'AUTO-DNP Monitoring System';
 
         ---------------------------------------------------------------------
-        -- 4️⃣ Send the email
+        -- 3️⃣ Send the email
         ---------------------------------------------------------------------
         BEGIN
             UTL_MAIL.send(
-                sender     => 'apex-notify@yourdomain.com',
+                sender     => 'apex-notify@yourdomain.com',  -- ✅ unchanged
                 recipients => v_recipients,
                 subject    => v_mail_subject,
                 message    => v_mail_body
             );
 
-            DBMS_OUTPUT.PUT_LINE('Email sent successfully for Job ID: ' || v_job_id);
+            DBMS_OUTPUT.PUT_LINE('✅ Email sent successfully for Job ID: ' || v_job_id);
 
         EXCEPTION
             WHEN OTHERS THEN
                 DBMS_OUTPUT.PUT_LINE('⚠️ Email failed: ' || SQLERRM);
         END;
+
     ELSE
-        DBMS_OUTPUT.PUT_LINE('✅ No invalid records found for Job ' || v_job_id || '. No mail sent.');
+        DBMS_OUTPUT.PUT_LINE('ℹ️ No invalid records found for Job ' || v_job_id || '. No mail sent.');
     END IF;
 
 EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('❌ Error in email process: ' || SQLERRM);
 END;
+/
