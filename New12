@@ -1,59 +1,49 @@
 DECLARE
-    v_job_id        NUMBER := :P1040_JOB_ID;  -- Page item or bind variable
+    v_job_id        NUMBER := :P1040_JOB_ID;  -- Page item
     v_invalid_count NUMBER;
-    v_recipients    VARCHAR2(4000) := :P1040_EMAIL_TO;  -- Page item for email or static value
+    v_recipients    VARCHAR2(4000) := :P1040_EMAIL_TO;  -- Page item or static address
     v_mail_subject  VARCHAR2(500);
     v_mail_body     CLOB;
+    v_mail_id       NUMBER;
 BEGIN
-    ---------------------------------------------------------------------
-    -- 1️⃣ Check if any INVALID rows exist for this job
-    ---------------------------------------------------------------------
+    -- 1️⃣ Count invalid records
     SELECT COUNT(*)
       INTO v_invalid_count
       FROM eresuser_owner.eres_bulk_res_upload_detail
      WHERE job_id = v_job_id
        AND UPPER(row_status) = 'INVALID';
 
-    ---------------------------------------------------------------------
-    -- 2️⃣ Send mail only if invalid records exist
-    ---------------------------------------------------------------------
+    -- 2️⃣ Send only if invalid records exist
     IF v_invalid_count > 0 THEN
-
         v_mail_subject := '[AUTO-DNP ALERT] Job ' || v_job_id || ' has INVALID Records';
 
-        v_mail_body :=
+        v_mail_body := 
               'Dear Team,' || CHR(10) || CHR(10) ||
               'Job ID: ' || v_job_id || CHR(10) ||
-              'Status : INVALID' || CHR(10) || CHR(10) ||
+              'Status: INVALID' || CHR(10) || CHR(10) ||
               'Please review the job in APEX or check the INVALID rows in table:' || CHR(10) ||
               'ERES_BULK_RES_UPLOAD_DETAIL.' || CHR(10) || CHR(10) ||
               'Regards,' || CHR(10) ||
               'AUTO-DNP Monitoring System';
 
-        ---------------------------------------------------------------------
-        -- 3️⃣ Send the email
-        ---------------------------------------------------------------------
-        BEGIN
-            UTL_MAIL.send(
-                sender     => 'apex-notify@yourdomain.com',  -- ✅ unchanged
-                recipients => v_recipients,
-                subject    => v_mail_subject,
-                message    => v_mail_body
-            );
+        -- 3️⃣ Send via APEX_MAIL
+        v_mail_id := APEX_MAIL.SEND(
+            p_to        => v_recipients,
+            p_from      => 'apex-notify@yourdomain.com', -- Sender (APEX SMTP config)
+            p_subj      => v_mail_subject,
+            p_body      => v_mail_body
+        );
 
-            DBMS_OUTPUT.PUT_LINE('✅ Email sent successfully for Job ID: ' || v_job_id);
+        DBMS_OUTPUT.PUT_LINE('✅ Email queued successfully (Mail ID: ' || v_mail_id || ')');
 
-        EXCEPTION
-            WHEN OTHERS THEN
-                DBMS_OUTPUT.PUT_LINE('⚠️ Email failed: ' || SQLERRM);
-        END;
-
+        -- 4️⃣ Force send immediately (optional)
+        APEX_MAIL.PUSH_QUEUE;
     ELSE
         DBMS_OUTPUT.PUT_LINE('ℹ️ No invalid records found for Job ' || v_job_id || '. No mail sent.');
     END IF;
 
 EXCEPTION
     WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('❌ Error in email process: ' || SQLERRM);
+        DBMS_OUTPUT.PUT_LINE('❌ Error in APEX_MAIL process: ' || SQLERRM);
 END;
 /
