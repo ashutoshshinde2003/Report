@@ -11,3 +11,112 @@
                     END,l_mer_num,l_us_currency_amt,l_trn_dt,l_work_of_dt,l_susp_reas_cd,l_case_status_id,  l_Alliance_Name,
                     Case When l_case_status_id in (10,20) THEN 'Action Taken or Case Closed' END
                 );
+
+
+
+
+
+IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') AND rec.pts_res_group_id IS NOT NULL THEN
+    BEGIN                        
+        SELECT 
+            pc.mer_num,
+            pc.work_of_dt,
+            pbr.rej_amt,
+            pc.trn_dt,
+            pc.susp_reas_cd || ' ' || pc.susp_reas_cd2 || ' ' || pc.susp_reas_cd3 AS susp_reas_cd,
+            pc.case_status_id,
+            aref.alliance_name,
+            NVL(TRIM(UPPER(REGEXP_REPLACE(aref.ui_platform_cd, '[^A-Z0-9]', ''))),
+                TRIM(UPPER(REGEXP_REPLACE(pc.platform_cd, '[^A-Z0-9]', '')))
+               ) AS ui_platform_cd
+        INTO 
+            l_mer_num,
+            l_work_of_dt,
+            l_us_currency_amt,
+            l_trn_dt,   
+            l_susp_reas_cd,
+            l_case_status_id,
+            l_alliance_name,
+            l_ui_platform_cd
+        FROM eresuser_owner.pts_case pc
+        JOIN eresuser_owner.pts_alliance_ref aref
+          ON pc.alliance_id = aref.alliance_id
+        JOIN eresuser_owner.pts_batch_resolution pbr
+          ON pc.pts_res_group_id = pbr.pts_res_group_id
+        WHERE pbr.pts_res_group_id = rec.pts_res_group_id
+          AND ROWNUM = 1;
+
+        l_not_found := FALSE;
+
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                job_id, seq_no, pts_res_group_id, row_status, error_msg
+            ) VALUES (
+                l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Improper Data Entered'
+            );
+            l_not_found := TRUE;
+    END;   
+
+    IF l_not_found THEN
+        INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+            job_id, seq_no, pts_res_group_id, row_status, error_msg
+        ) VALUES (
+            l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Res Group ID not valid'
+        );
+
+    ELSE
+        ----------------------------------------------------------------
+        -- ✅ Fixed platform validation logic
+        ----------------------------------------------------------------
+        DECLARE
+            v_sys   VARCHAR2(50) := UPPER(TRIM(:P1039_SYSTEM));
+            v_cd    VARCHAR2(50) := NVL(l_ui_platform_cd, 'NONE');
+        BEGIN
+            INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                job_id, seq_no, pts_res_group_id, row_status,
+                mer_num, us_currency_amt, trn_dt, work_of_dt,
+                susp_reas_cd, case_status_id, alliance_name, error_msg
+            )
+            SELECT
+                l_job_id,
+                l_seq_no,
+                rec.pts_res_group_id,
+                CASE
+                    WHEN l_case_status_id IN (10,20) THEN 'INVALID'
+                    WHEN (
+                          (v_sys = 'NORTH' AND v_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
+                       OR (v_sys = 'SOUTH' AND v_cd IN ('SO'))
+                       OR (v_sys = 'MEMPHIS' AND v_cd IN ('MC','MW','MB','MJ','MU'))
+                       OR (v_sys = 'PROPRIETARY' AND v_cd IN ('PR'))
+                     ) THEN 'PENDING'
+                    ELSE 'INVALID'
+                END AS row_status,
+                l_mer_num,
+                l_us_currency_amt,
+                l_trn_dt,
+                l_work_of_dt,
+                l_susp_reas_cd,
+                l_case_status_id,
+                l_alliance_name,
+                CASE
+                    WHEN l_case_status_id IN (10,20) THEN 'Action Taken or Case Closed'
+                    WHEN (
+                          (v_sys = 'NORTH' AND v_cd IN ('T','X','Y','M','Z','Q','F','N','J','R','E','O','V','D','H','P','W','K','G','A','C'))
+                       OR (v_sys = 'SOUTH' AND v_cd IN ('SO'))
+                       OR (v_sys = 'MEMPHIS' AND v_cd IN ('MC','MW','MB','MJ','MU'))
+                       OR (v_sys = 'PROPRIETARY' AND v_cd IN ('PR'))
+                     ) THEN NULL
+                    ELSE 'Platform not valid for selected system'
+                END AS error_msg
+            FROM dual;
+        END;
+    END IF;
+
+ELSE
+    INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+        job_id, seq_no, pts_res_group_id, row_status, error_msg
+    ) VALUES (
+        l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Improper Data Entered'
+    );
+END IF;
