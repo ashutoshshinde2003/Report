@@ -1,37 +1,12 @@
-// ======== Safe File Browse Validation (before APEX loading) ========
 apex.page.beforeSubmit(function () {
-  const fileItem = "P21_FILE_BROWSE";  // <-- change to your actual item name, e.g. P1040_FILE_UPLOAD
-  const fileVal = $v(fileItem);
-
-  // Clear old messages
-  apex.message.clearErrors();
-
-  // If no file is selected
-  if (!fileVal || fileVal.trim() === "") {
-
-    // Stop submit & prevent loading spinner
+  const fname = $v("P1040_FILE_NAME");
+  if (!fname || fname.trim() === "") {
     apex.event.gCancelFlag = true;
-
-    // Show native APEX error
     apex.message.showErrors([{
       type: "error",
       location: "page",
-      message: "Please select a file before submitting.",
-      unsafe: false
+      message: "Please select a file before submitting."
     }]);
-
-    // Highlight the field briefly
-    const el = document.getElementById(fileItem);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.style.outline = "3px solid red";
-      setTimeout(() => { el.style.outline = ""; }, 2000);
-    }
-
-    // Stop submission completely
     return false;
   }
-
-  // Allow normal submit and show loading spinner
-  return true;
 });
