@@ -1,19 +1,49 @@
- v_mail_body :=
-              'Dear Team,' || CHR(10) || CHR(10) ||
-              'This is an automated alert from the AUTO-DNP Monitoring System.' || CHR(10) || CHR(10) ||
+DECLARE
+    v_job_id         NUMBER := :P1040_JOB_ID;
+    v_total_count    NUMBER := :P1040_COUNT_TOTAL_RECORDS;
+    v_invalid_count  NUMBER := :P1040_COUNT_INVALID_RECORDS;
+    v_mail_body      CLOB;
+    v_err_id         NUMBER;
+BEGIN
+    -- 1️⃣ Build message body
+    v_mail_body :=
+          'Dear Team,' || CHR(10) || CHR(10) ||
+          'This is an automated alert from the AUTO-DNP Monitoring System.' || CHR(10) || CHR(10) ||
 
-              'Job Details:' || CHR(10) ||
-              'Job ID             : ' || v_job_id || CHR(10) ||
-              'Total Records      : ' || v_total_count || CHR(10) ||
-              'Invalid Records    : ' || v_invalid_count || CHR(10) || CHR(10) ||
+          'Job Details:' || CHR(10) ||
+          'Job ID             : ' || v_job_id || CHR(10) ||
+          'Total Records      : ' || v_total_count || CHR(10) ||
+          'Invalid Records    : ' || v_invalid_count || CHR(10) || CHR(10) ||
 
-              'Please review this job in Oracle APEX or verify the INVALID entries in the table:' || CHR(10) ||
-              'ERES_BULK_RES_UPLOAD_DETAIL' || CHR(10) || CHR(10) ||
+          'Please review this job in Oracle APEX or verify the INVALID entries in the table:' || CHR(10) ||
+          'ERES_BULK_RES_UPLOAD_DETAIL' || CHR(10) || CHR(10) ||
 
-              '¿ General DNP Note:' || CHR(10) ||
-              'Ensure that all PTS_RES_GROUP_ID values are valid and mapped correctly.' || CHR(10) ||
-              'Any invalid entries indicate missing or mismatched case data in the source system.' || CHR(10) ||
-              'After correction, please re-upload or reprocess the job as required.' || CHR(10) || CHR(10) ||
+          '¿ General DNP Note:' || CHR(10) ||
+          'Ensure that all PTS_RES_GROUP_ID values are valid and mapped correctly.' || CHR(10) ||
+          'Any invalid entries indicate missing or mismatched case data in the source system.' || CHR(10) ||
+          'After correction, please re-upload or reprocess the job as required.' || CHR(10) || CHR(10) ||
 
-              'Regards,' || CHR(10) ||
-              'AUTO-DNP Monitoring System';
+          'Regards,' || CHR(10) ||
+          'AUTO-DNP Monitoring System';
+
+    -- 2️⃣ Call log_error function from eresuser_owner
+    v_err_id := eresuser_owner.log_error(
+                    vErrStack_in   => ' ',
+                    vCallStack_in  => ' ',
+                    nApplId_in     => 2,
+                    nErrTypeCd_in  => 0,
+                    vErrComment_in => v_mail_body,
+                    bCommit_in     => TRUE
+                );
+
+    -- 3️⃣ Confirmation message
+    APEX_DEBUG.MESSAGE('Log Error Created: ' || v_err_id);
+    APEX_NOTIFICATION.ADD(
+        'Error logged successfully with ID: ' || v_err_id,
+        APEX_NOTIFICATION.c_success
+    );
+
+EXCEPTION
+    WHEN OTHERS THEN
+        APEX_NOTIFICATION.ADD('Error while logging: ' || SQLERRM, APEX_NOTIFICATION.c_error);
+END;
