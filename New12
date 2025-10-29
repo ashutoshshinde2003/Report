@@ -1,12 +1,185 @@
-apex.page.beforeSubmit(function () {
-  const fname = $v("P1040_FILE_NAME");
-  if (!fname || fname.trim() === "") {
-    apex.event.gCancelFlag = true;
-    apex.message.showErrors([{
-      type: "error",
-      location: "page",
-      message: "Please select a file before submitting."
-    }]);
-    return false;
-  }
-});
+DECLARE
+    l_blob        BLOB;
+    l_file_name   VARCHAR2(255);
+    l_err_msg     VARCHAR2(4000);
+    l_job_id      NUMBER;
+    l_seq_no      NUMBER := 0;
+    l_status      VARCHAR2(20);
+    l_not_Found BOOLEAN;    
+    
+l_mer_num          ERESUSER_OWNER.ERES_BULK_RES_UPLOAD_DETAIL.mer_num%TYPE;
+l_us_currency_amt  ERESUSER_OWNER.ERES_BULK_RES_UPLOAD_DETAIL.us_currency_amt%TYPE;
+l_trn_dt           ERESUSER_OWNER.ERES_BULK_RES_UPLOAD_DETAIL.trn_dt%TYPE;
+l_work_of_dt       ERESUSER_OWNER.ERES_BULK_RES_UPLOAD_DETAIL.work_of_dt%TYPE;
+l_susp_reas_cd     ERESUSER_OWNER.ERES_BULK_RES_UPLOAD_DETAIL.susp_reas_cd%TYPE;
+l_case_status_id   ERESUSER_OWNER.ERES_BULK_RES_UPLOAD_DETAIL.case_status_id%TYPE;
+l_Alliance_Name     VARCHAR2(50);
+l_ui_platform_cd    VARCHAR2(10);
+
+BEGIN
+    -------------------------------------------------------------------
+    -- 1. Get uploaded file from APEX temp files using filename
+    -------------------------------------------------------------------
+    l_file_name := :P1039_FILE_NAME;
+    
+    SELECT blob_content, filename
+      INTO l_blob, l_file_name
+      FROM apex_application_temp_files
+     WHERE application_id = :APP_ID
+       AND UPPER(TRIM(filename)) = UPPER(TRIM(l_file_name))
+       AND ROWNUM = 1;
+
+    -------------------------------------------------------------------
+    -- 2. Generate JOB_ID from your sequence
+    -------------------------------------------------------------------
+    SELECT ERESUSER_OWNER.seq_bulk_resolution.NEXTVAL 
+    INTO l_job_id FROM dual;
+
+    -------------------------------------------------------------------
+    -- 3. Insert header record
+    -------------------------------------------------------------------
+    INSERT INTO ERESUSER_OWNER.eres_bulk_res_upload_smry (
+        job_id, created_by, created_dt, System, Action_Id, Appl_Id, job_status
+    ) VALUES (
+        l_job_id, :F104_USER_NAME, SYSDATE, :P1039_SYSTEM, :P1039_ACTION, :P102_APPL_ID, 'PENDING'
+    );
+
+    -------------------------------------------------------------------
+    -- 4. Parse Excel and insert each record
+    -------------------------------------------------------------------
+    BEGIN
+    FOR rec IN (
+        SELECT 
+            --NULLIF(TRIM(col001), '') AS pts_res_group_id   -- ¿ handles blank/cleared cells
+          TRIM(col001) AS pts_res_group_id
+          FROM TABLE(
+            apex_data_parser.parse(
+                p_content   => l_blob,
+                p_file_name => l_file_name,
+                p_skip_rows => 1
+            )
+          )
+    )
+    LOOP
+       
+        l_seq_no   := l_seq_no + 1;
+        
+
+ IF REGEXP_LIKE(rec.pts_res_group_id, '^\d+$') and rec.pts_res_group_id is not NULL THEN
+    BEGIN                        
+               Select pc.mer_Num,
+                                  pc.work_Of_Dt,
+                                  pbr.rej_Amt,
+                                  pc.trn_dt,
+                                     pc.susp_Reas_Cd
+                                  || ' '
+                                  || pc.susp_Reas_Cd2
+                                  || ' '
+                                  || pc.susp_Reas_Cd3
+                                     susp_Reas_Cd,
+                                  pc.case_status_id,
+                                  aref.alliance_name,
+                                  aref.ui_platform_cd
+                              INTO l_mer_num,
+                     l_work_of_dt,
+                     l_us_currency_amt,
+                     l_trn_dt,   
+                     l_susp_reas_cd,
+                     l_case_status_id,
+                     l_Alliance_Name,
+                     l_ui_platform_cd
+                             FROM ERESUSER_OWNER.Pts_Case pc,
+                                  ERESUSER_OWNER.Pts_Alliance_Ref aref,
+                                  ERESUSER_OWNER.pts_Batch_Resolution pbr
+                WHERE pbr.pts_res_group_id = rec.pts_res_group_id
+                AND pc.alliance_id = aref.alliance_id
+                AND pc.pts_res_group_id = pbr.pts_res_group_id
+                AND ROWNUM=1;
+                l_not_Found :=FALSE;
+EXCEPTION WHEN NO_DATA_FOUND
+THEN
+l_not_Found := TRUE;
+END;   
+if l_not_Found
+THEN
+INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status, error_msg
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Res Group ID not valid'
+                );
+ELSE
+                INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status,mer_num,us_currency_amt,trn_dt,work_of_dt,susp_reas_cd,case_status_id, Alliance_Name, Error_Msg
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 
+                    Case When l_case_status_id in (10,20) THEN 'INVALID'
+                         when UPPER(:P1039_SYSTEM) != UPPER(l_ui_platform_cd) THEN 'INVALID'
+                    ELSE 'PENDING'
+                    END,l_mer_num,l_us_currency_amt,l_trn_dt,l_work_of_dt,l_susp_reas_cd,l_case_status_id,  l_Alliance_Name,
+                    Case When l_case_status_id in (10,20) THEN 'Action Taken or Case Closed'
+                         when UPPER(:P1039_SYSTEM) != UPPER(l_ui_platform_cd) THEN 'SYSTEM MISMATCH' END
+                );
+     END IF;                                          
+
+            ELSE
+                INSERT INTO eresuser_owner.eres_bulk_res_upload_detail (
+                    job_id, seq_no, pts_res_group_id, row_status, error_msg
+                ) VALUES (
+                    l_job_id, l_seq_no, rec.pts_res_group_id, 'INVALID', 'Improper Data Entered'
+                );
+            END IF; 
+
+      
+            
+     IF l_seq_no mod 1000 = 0 Then
+        COMMIT;
+    END IF;
+    END LOOP;
+
+
+
+ 
+    EXCEPTION WHEN OTHERS THEN
+     l_Err_Msg := SUBSTR (SQLERRM, 1, 400);
+      Log_Apex_Error (
+         I_APPLICATION_ID   => :APP_ID,
+         I_PAGE_NUMBER      => :APP_PAGE_ID,
+         I_PROCESS_NAME     => 'Data_Load',
+         I_PROCEDURE_NAME   => NULL,
+         I_ERR_DATE         => SYSDATE,
+         I_ERROR_MESSAGE    => l_Err_Msg,
+         I_ADDNL_COMMENTS   => 'FIRST PART',
+         I_USER_NAME        => :F104_USER_NAME);
+      RAISE;
+END;
+    -------------------------------------------------------------------
+    -- 5. Cleanup uploaded temp file (optional)
+    -------------------------------------------------------------------
+    DELETE FROM apex_application_temp_files
+     WHERE UPPER(TRIM(filename)) = UPPER(TRIM(l_file_name));
+
+    COMMIT;
+
+    -------------------------------------------------------------------
+    -- 7. Set page items
+    -------------------------------------------------------------------
+    :P1039_JOBID := l_job_id;
+
+EXCEPTION
+    WHEN OTHERS THEN
+
+      l_Err_Msg := SUBSTR (SQLERRM, 1, 400);
+      ROLLBACK;
+      Log_Apex_Error (
+         I_APPLICATION_ID   => :APP_ID,
+         I_PAGE_NUMBER      => :APP_PAGE_ID,
+         I_PROCESS_NAME     => 'Data_Load',
+         I_PROCEDURE_NAME   => NULL,
+         I_ERR_DATE         => SYSDATE,
+         I_ERROR_MESSAGE    => l_Err_Msg,
+         I_ADDNL_COMMENTS   => NULL,
+         I_USER_NAME        => :F104_USER_NAME);
+      RAISE;
+
+
+END;
