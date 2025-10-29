@@ -101,3 +101,9 @@ EXCEPTION
     WHEN OTHERS THEN
         htp.p('<div class="t-Alert t-Alert--danger">Error while logging: ' || SQLERRM || '</div>');
 END;
+
+
+
+EXECUTE IMMEDIATE
+'BEGIN :x := eresuser_owner.log_error(vErrStack_in => :a, vCallStack_in => :b, nApplId_in => :c, nErrTypeCd_in => :d, vErrComment_in => :e, bCommit_in => :f); END;'
+USING OUT v_err_id, ' ', ' ', 2, 0, v_mail_body, TRUE;
