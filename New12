@@ -1,11 +1,18 @@
-// ======== File Browse Pre-Submit Validation (before loading spinner) ========
-document.addEventListener("DOMContentLoaded", function () {
+// ======== Safe File Browse Validation (before APEX loading) ========
+apex.page.beforeSubmit(function () {
+  const fileItem = "P21_FILE_BROWSE";  // <-- change to your actual item name, e.g. P1040_FILE_UPLOAD
+  const fileVal = $v(fileItem);
 
-  const fileItemName = "P21_FILE_BROWSE"; // <-- your actual file browse item
+  // Clear old messages
+  apex.message.clearErrors();
 
-  // helper to show message and highlight field
-  function showFileError() {
-    apex.message.clearErrors();
+  // If no file is selected
+  if (!fileVal || fileVal.trim() === "") {
+
+    // Stop submit & prevent loading spinner
+    apex.event.gCancelFlag = true;
+
+    // Show native APEX error
     apex.message.showErrors([{
       type: "error",
       location: "page",
@@ -13,29 +20,18 @@ document.addEventListener("DOMContentLoaded", function () {
       unsafe: false
     }]);
 
-    const el = document.getElementById(fileItemName);
+    // Highlight the field briefly
+    const el = document.getElementById(fileItem);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       el.style.outline = "3px solid red";
       setTimeout(() => { el.style.outline = ""; }, 2000);
     }
+
+    // Stop submission completely
+    return false;
   }
 
-  // --- intercept BEFORE APEX triggers the spinner ---
-  $(document).on("apexbeforepagesubmit", function (e, data) {
-    const fileVal = $v(fileItemName);
-
-    if (!fileVal || fileVal.trim() === "") {
-      // Stop submit + prevent loading spinner
-      e.preventDefault();
-      e.stopImmediatePropagation();
-
-      showFileError();
-      return false;
-    }
-
-    // otherwise allow the spinner + submit to continue
-    return true;
-  });
-
+  // Allow normal submit and show loading spinner
+  return true;
 });
