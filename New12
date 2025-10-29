@@ -1,37 +1,41 @@
-// ======== File Browse Null Check Before Submit ========
-// Works for all submit buttons and shows native APEX message
+// ======== File Browse Pre-Submit Validation (before loading spinner) ========
 document.addEventListener("DOMContentLoaded", function () {
-  
-  // Intercept APEX submit
-  apex.page.submit = (function (origSubmit) {
-    return function (request) {
 
-      // --- get the File Browse item value ---
-      var fileItem = $v("P21_FILE_BROWSE"); // change this to your item name
-      var isEmpty = (fileItem === null || fileItem === undefined || fileItem.trim() === "");
+  const fileItemName = "P21_FILE_BROWSE"; // <-- your actual file browse item
 
-      // --- if empty file ---
-      if (isEmpty) {
-        // Clear previous messages first
-        apex.message.clearErrors();
+  // helper to show message and highlight field
+  function showFileError() {
+    apex.message.clearErrors();
+    apex.message.showErrors([{
+      type: "error",
+      location: "page",
+      message: "Please select a file before submitting.",
+      unsafe: false
+    }]);
 
-        // Show APEX-style error at page top
-        apex.message.showErrors([
-          {
-            type: "error",
-            location: "page",
-            message: "Please select a file before submitting.",
-            unsafe: false
-          }
-        ]);
+    const el = document.getElementById(fileItemName);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.style.outline = "3px solid red";
+      setTimeout(() => { el.style.outline = ""; }, 2000);
+    }
+  }
 
-        // Stop submit
-        return;
-      }
+  // --- intercept BEFORE APEX triggers the spinner ---
+  $(document).on("apexbeforepagesubmit", function (e, data) {
+    const fileVal = $v(fileItemName);
 
-      // Otherwise, continue with normal submit
-      origSubmit(request);
-    };
-  })(apex.page.submit);
+    if (!fileVal || fileVal.trim() === "") {
+      // Stop submit + prevent loading spinner
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      showFileError();
+      return false;
+    }
+
+    // otherwise allow the spinner + submit to continue
+    return true;
+  });
 
 });
