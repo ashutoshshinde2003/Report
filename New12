@@ -1,76 +1,19 @@
-DECLARE
-    v_job_id         NUMBER := :P1040_JOB_ID;     -- Page item
-    v_invalid_count  NUMBER;
-    v_total_count    NUMBER;
-    v_recipients     VARCHAR2(4000) := :P1040_EMAIL_TO;  -- Page item or static address
-    v_mail_subject   VARCHAR2(500);
-    v_mail_body      CLOB;
-    v_mail_id        NUMBER;
-BEGIN
-    -------------------------------------------------------------------
-    -- 1️⃣ Count invalid and total records for this job
-    -------------------------------------------------------------------
-    SELECT COUNT(*)
-      INTO v_invalid_count
-      FROM eresuser_owner.eres_bulk_res_upload_detail
-     WHERE job_id = v_job_id
-       AND UPPER(row_status) = 'INVALID';
-
-    SELECT COUNT(*)
-      INTO v_total_count
-      FROM eresuser_owner.eres_bulk_res_upload_detail
-     WHERE job_id = v_job_id;
-
-    -------------------------------------------------------------------
-    -- 2️⃣ Send only if invalid records exist
-    -------------------------------------------------------------------
-    IF v_invalid_count > 0 THEN
-        v_mail_subject := '[AUTO-DNP ALERT] Job ' || v_job_id || ' has INVALID Records';
-
-        -------------------------------------------------------------------
-        -- 3️⃣ Build the email body
-        -------------------------------------------------------------------
-        v_mail_body :=
+ v_mail_body :=
               'Dear Team,' || CHR(10) || CHR(10) ||
               'This is an automated alert from the AUTO-DNP Monitoring System.' || CHR(10) || CHR(10) ||
 
-              '📌 Job Details:' || CHR(10) ||
-              '• Job ID             : ' || v_job_id || CHR(10) ||
-              '• Total Records      : ' || v_total_count || CHR(10) ||
-              '• Invalid Records    : ' || v_invalid_count || CHR(10) || CHR(10) ||
+              'Job Details:' || CHR(10) ||
+              'Job ID             : ' || v_job_id || CHR(10) ||
+              'Total Records      : ' || v_total_count || CHR(10) ||
+              'Invalid Records    : ' || v_invalid_count || CHR(10) || CHR(10) ||
 
               'Please review this job in Oracle APEX or verify the INVALID entries in the table:' || CHR(10) ||
               'ERES_BULK_RES_UPLOAD_DETAIL' || CHR(10) || CHR(10) ||
 
-              '📝 General DNP Note:' || CHR(10) ||
+              '¿ General DNP Note:' || CHR(10) ||
               'Ensure that all PTS_RES_GROUP_ID values are valid and mapped correctly.' || CHR(10) ||
               'Any invalid entries indicate missing or mismatched case data in the source system.' || CHR(10) ||
               'After correction, please re-upload or reprocess the job as required.' || CHR(10) || CHR(10) ||
 
               'Regards,' || CHR(10) ||
               'AUTO-DNP Monitoring System';
-
-        -------------------------------------------------------------------
-        -- 4️⃣ Send via APEX_MAIL
-        -------------------------------------------------------------------
-        v_mail_id := APEX_MAIL.SEND(
-            p_to        => v_recipients,
-            p_from      => 'apex-notify@yourdomain.com',  -- APEX-configured sender
-            p_subj      => v_mail_subject,
-            p_body      => v_mail_body
-        );
-
-        DBMS_OUTPUT.PUT_LINE('✅ Email queued successfully for Job ID: ' || v_job_id || ' (Mail ID: ' || v_mail_id || ')');
-
-        -- 5️⃣ Immediately push mail queue (optional)
-        APEX_MAIL.PUSH_QUEUE;
-
-    ELSE
-        DBMS_OUTPUT.PUT_LINE('ℹ️ No invalid records found for Job ' || v_job_id || '. No mail sent.');
-    END IF;
-
-EXCEPTION
-    WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('❌ Error in APEX_MAIL process: ' || SQLERRM);
-END;
-/
