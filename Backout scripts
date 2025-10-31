@@ -1,36 +1,19 @@
-DECLARE
-    l_db_file   VARCHAR2(255);
-    l_count     NUMBER;
-BEGIN
-    -- Expected file name from page item
-    IF :P1039_FILE_NAME IS NULL THEN
-       raise_application_error(-20001, 'Please provide the expected file name.');
-    END IF;
+// Disable submit on page load
+$("#SUBMIT").prop("disabled", true);
 
-    -- Check if the file exists in APEX temp table
-    SELECT COUNT(*)
-      INTO l_count
-      FROM apex_application_temp_files
-     WHERE application_id = :APP_ID
-       AND UPPER(TRIM(filename)) = UPPER(TRIM(:P1039_FILE_NAME));
+// Add fake click handler to show alert when disabled
+$("#SUBMIT").on("click", function(e){
+    if ( $(this).prop("disabled") ) {
+        e.preventDefault();
+        apex.message.alert("Please upload a file before submitting.");
+    }
+});
 
-    -- If file not found in APEX temp table → error
-    IF l_count = 0 THEN
-        raise_application_error(
-            -20002,
-            'File not uploaded or filename mismatch! Expected file: ' || :P1039_FILE_NAME
-        );
-    END IF;
-
-    -- ✅ If exists, get the filename from temp table and continue
-    SELECT filename
-      INTO l_db_file
-      FROM apex_application_temp_files
-     WHERE application_id = :APP_ID
-       AND UPPER(TRIM(filename)) = UPPER(TRIM(:P1039_FILE_NAME))
-       AND ROWNUM = 1;
-
-    -- Assign to variable used later in your script
-    l_file_name := l_db_file;
-
-END;
+// When file is selected, enable the button
+$("#P1039_FILE_BROWSE").on("change", function(){
+    if ($v("P1039_FILE_BROWSE")) {
+        $("#SUBMIT").prop("disabled", false);
+    } else {
+        $("#SUBMIT").prop("disabled", true);
+    }
+});
