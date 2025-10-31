@@ -1,138 +1,25 @@
-SET DEFINE OFF;
+DECLARE
+    l_file_uploaded VARCHAR2(255);
+BEGIN
+    -- Get uploaded file name from APEX temp files
+    SELECT filename
+      INTO l_file_uploaded
+      FROM apex_application_temp_files
+     WHERE name = :P1039_FILE_BROWSE
+       AND application_id = :APP_ID
+       AND rownum = 1;
 
-Insert into FSAM_MASTER.BANK_HOLIDAYS
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('1/1/2027', 'MM/DD/YYYY'), 'New Year''s Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('3/26/2027', 'MM/DD/YYYY'), 'Good Friday', 'N');
-   Insert into FSAM_MASTER.BANK_HOLIDAYS
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('3/29/2027', 'MM/DD/YYYY'), 'Easter Monday', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('5/3/2027', 'MM/DD/YYYY'), 'Early May Bank Holiday', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('5/31/2027', 'MM/DD/YYYY'), 'Spring Bank Holiday', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('8/30/2027', 'MM/DD/YYYY'), 'Summer Bank Holiday', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('12/27/2027', 'MM/DD/YYYY'), 'Christmas Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('12/28/2027', 'MM/DD/YYYY'), 'Boxing Day (substitute day)', 'N');
-COMMIT;
+    -- 1) File not selected
+    IF l_file_uploaded IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Please upload a file before submitting.');
+    END IF;
 
+    -- 2) File name mismatch with page item (typed/assigned name)
+    IF UPPER(TRIM(l_file_uploaded)) <> UPPER(TRIM(:P1039_FILE_NAME)) THEN
+        RAISE_APPLICATION_ERROR(-20002, 'Uploaded file name does not match the expected file name.');
+    END IF;
 
-
-
-
-
-
---UK/International
-
-SET DEFINE OFF;
-   
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('1/1/2027', 'MM/DD/YYYY'), 'New Year''s Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('1/19/2027', 'MM/DD/YYYY'), 'Martin Luther King, Jr. Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('2/15/2027', 'MM/DD/YYYY'), 'President''s Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('3/26/2027', 'MM/DD/YYYY'), 'Good Friday', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('3/29/2027', 'MM/DD/YYYY'), 'Easter Monday', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('5/3/2027', 'MM/DD/YYYY'), 'Early May Bank Holiday', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('5/31/2027', 'MM/DD/YYYY'), 'Memorial Day/Spring Bank US/UK', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('6/19/2027', 'MM/DD/YYYY'), 'Juneteenth (Observed)', 'Y');
-/*Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('7/4/2027', 'MM/DD/YYYY'), 'Independence Day', 'N');*/
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('8/30/2027', 'MM/DD/YYYY'), 'Summer Bank Holiday', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('9/6/2027', 'MM/DD/YYYY'), 'Labor Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('10/11/2027', 'MM/DD/YYYY'), 'Columbus Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('11/11/2027', 'MM/DD/YYYY'), 'Veterans Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('11/25/2027', 'MM/DD/YYYY'), 'Thanksgiving Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('12/27/2027', 'MM/DD/YYYY'), 'Christmas Day', 'N');
-Insert into FSAM_MASTER.BANK_HOLIDAYS_EUROPAYDAY2
-   (PLAT_ID, COUNTRY_CD, HOLIDAY_DT, HOLIDAY_NAME, WEEKEND)
- Values
-   ('L', 'UK', TO_DATE('12/28/2027', 'MM/DD/YYYY'), 'Boxing Day (substitute day)', 'N');
-
-COMMIT;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Please upload a valid file before submitting.');
+END;
