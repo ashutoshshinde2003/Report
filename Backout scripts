@@ -1,19 +1,46 @@
-// Disable submit on page load
-$("#SUBMIT").prop("disabled", true);
+/* Visual disabled style without using the disabled attribute */
+#BTN_SUBMIT.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-// Add fake click handler to show alert when disabled
-$("#SUBMIT").on("click", function(e){
-    if ( $(this).prop("disabled") ) {
+
+
+(function ($) {
+  function updateSubmitState() {
+    var hasFile = $v("P1039_FILE_BROWSE"); // non-empty when user picked a file
+    var $btn = $("#BTN_SUBMIT");
+
+    if (hasFile) {
+      $btn.removeClass("is-disabled").data("block", false);
+    } else {
+      $btn.addClass("is-disabled").data("block", true);
+    }
+  }
+
+  // Initialize on load
+  $(function () {
+    updateSubmitState();
+
+    // Recheck when user picks/removes a file
+    $("#P1039_FILE_BROWSE").on("change", updateSubmitState);
+
+    // Intercept clicks when visually disabled
+    $("#BTN_SUBMIT").on("click", function (e) {
+      if ($(this).data("block")) {
         e.preventDefault();
         apex.message.alert("Please upload a file before submitting.");
-    }
-});
+        return false;
+      }
+    });
 
-// When file is selected, enable the button
-$("#P1039_FILE_BROWSE").on("change", function(){
-    if ($v("P1039_FILE_BROWSE")) {
-        $("#SUBMIT").prop("disabled", false);
-    } else {
-        $("#SUBMIT").prop("disabled", true);
-    }
-});
+    // Final safety net: cancel submit if no file
+    apex.page.beforeSubmit(function () {
+      if (! $v("P1039_FILE_BROWSE")) {
+        apex.event.gCancelFlag = true;
+        apex.message.alert("Please upload a file before submitting.");
+        return false;
+      }
+    });
+  });
+})(apex.jQuery);
