@@ -1,45 +1,10 @@
-BEGIN
-  DBMS_SCHEDULER.create_job (
-    job_name        => 'JOB_BULK_RESOLUTION',
-    job_type        => 'PLSQL_BLOCK',
-    job_action      => 'BEGIN ERESUSER_OWNER.SP_BULK_RESOLUTION(); END;',
-    start_date      => (SYSTIMESTAMP AT TIME ZONE ''America/New_York''),
-    repeat_interval => 'FREQ=DAILY; BYHOUR=22; BYMINUTE=45; BYSECOND=0',
-    enabled         => TRUE
-  );
-END;
-/
+-- Reset IR session state so pagination returns to page 1
+apex_util.reset_report(
+   p_page      => :APP_PAGE_ID,
+   p_region_id => apex_util.find_region_id('VALID_IR')
+);
 
-
-
-
-
-(function(){
-    var irRegions = ['VALID_RECORDS','INVALID_RECORDS'];
-
-    function resetIRPage(staticId){
-        try {
-            var region = apex.region(staticId);
-            if(region && region.call){
-                region.call("paginate", {
-                    page: 1
-                });
-            }
-        } catch(e) {}
-    }
-
-    // Reset on page load
-    irRegions.forEach(function(r){
-        resetIRPage(r);
-
-        // Also reset after IR refresh
-        try {
-            var reg = apex.region(r);
-            if (reg && reg.widget) {
-                reg.widget().on("apexafterrefresh", function() {
-                    resetIRPage(r);
-                });
-            }
-        } catch(e){}
-    });
-})();
+apex_util.reset_report(
+   p_page      => :APP_PAGE_ID,
+   p_region_id => apex_util.find_region_id('INVALID_IR')
+);
