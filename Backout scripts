@@ -9,3 +9,37 @@ BEGIN
   );
 END;
 /
+
+
+
+
+
+(function(){
+    var irRegions = ['VALID_RECORDS','INVALID_RECORDS'];
+
+    function resetIRPage(staticId){
+        try {
+            var region = apex.region(staticId);
+            if(region && region.call){
+                region.call("paginate", {
+                    page: 1
+                });
+            }
+        } catch(e) {}
+    }
+
+    // Reset on page load
+    irRegions.forEach(function(r){
+        resetIRPage(r);
+
+        // Also reset after IR refresh
+        try {
+            var reg = apex.region(r);
+            if (reg && reg.widget) {
+                reg.widget().on("apexafterrefresh", function() {
+                    resetIRPage(r);
+                });
+            }
+        } catch(e){}
+    });
+})();
