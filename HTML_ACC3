@@ -1,1 +1,5 @@
 (Invoke-WebRequest -Uri "https://your-apex-host/ords/f?p=APP_ID:PAGE" -Method Get).Headers
+
+
+
+https://eresxpress-reports-cat.1dc.com/ords/catreport/r/cat/eresp103/reportslist?session=2175825886081
