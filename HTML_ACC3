@@ -241,3 +241,10 @@ Not expected:
 jquery-1.7.1.js
 
 ✅ Verified – updated to current secure jQuery version.
+
+
+
+
+
+
+^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$
