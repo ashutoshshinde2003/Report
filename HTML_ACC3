@@ -248,3 +248,15 @@ jquery-1.7.1.js
 
 
 ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$
+
+
+
+
+
+IF REGEXP_LIKE(:PXXX_EMAIL,
+               '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+THEN
+    RETURN TRUE;
+ELSE
+    RETURN FALSE;
+END IF;
