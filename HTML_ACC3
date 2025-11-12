@@ -1,3 +1,57 @@
 https://eresxpress-reports-cat.1dc.com/ords/catreport/r/cat/eresp103/reportslist?p102_app_id=2&session=17496995365495
 
 
+
+CREATE OR REPLACE PROCEDURE POST_AUTH IS
+/******************************************************************
+NAME:        POST_AUTH
+PURPOSE:     Logs the user login in a custom table to prevent
+             parallel logins and applies secure cookie scoping.
+REVISION:    1.1
+DATE:        11-Nov-2025
+AUTHOR:      Amit / Updated for cookie security by Ashutosh
+******************************************************************/
+
+BEGIN
+    -- 1️⃣ Remove any previous login record for this user/app
+    DELETE FROM App_User_Login_Details
+     WHERE User_Id = v('APP_USER')
+       AND App_Id  = v('APP_ID');
+
+    -- 2️⃣ Insert new login entry
+    INSERT INTO App_User_Login_Details (
+        User_Id,
+        Last_Access_Time,
+        App_Id,
+        Session_Id
+    )
+    VALUES (
+        v('APP_USER'),
+        SYSDATE,
+        v('APP_ID'),
+        v('APP_SESSION')
+    );
+
+    COMMIT;
+
+    -- 3️⃣ Add secure cookie scope restriction
+    DECLARE
+        l_app_id     NUMBER := v('APP_ID');
+        l_app_alias  VARCHAR2(100) := v('APP_ALIAS');
+        l_session    VARCHAR2(4000) := v('APP_SESSION');
+    BEGIN
+        -- Re-send session cookie scoped to the specific APEX app
+        owa_cookie.send(
+            name      => 'ORA_WWV_APP_' || l_app_id,
+            value     => l_session,
+            path      => '/ords/' || l_app_alias,
+            secure    => TRUE,
+            httponly  => TRUE
+            -- sameSite => 'Strict'  -- Optional: enable if ORDS version supports
+        );
+    END;
+
+END POST_AUTH;
+/
+
+
