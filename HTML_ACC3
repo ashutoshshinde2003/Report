@@ -205,3 +205,7 @@ Path = /ords/catreport/
 
 $response = Invoke-WebRequest -Uri "https://eresxpress-reports-cat.1dc.com/ords/catreport/r/cat/eresp103/reportslist" -Method GET -SessionVariable session
 $response.Headers["Set-Cookie"]
+
+
+
+curl -I "https://eresxpress-reports-cat.1dc.com/ords/catreport/r/cat/eresp103/reportslist"
