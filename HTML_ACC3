@@ -1,1 +1,210 @@
+✅ COOKIE PATH FIX USING ORDS defaults.xml (DETAILED STEPS)
+
+
+---
+
+1. Identify the ORDS Configuration Directory
+
+ORDS always keeps its configuration outside the WAR file.
+
+Typical locations on Linux/UNIX:
+
+/u01/ords/config/
+
+/opt/oracle/ords/config/
+
+/home/oracle/ords/config/
+
+/etc/ords/config/
+
+To find it for sure, run this command on the server:
+
+find / -name "defaults.xml" 2>/dev/null
+
+The correct path will look like:
+
+/u01/ords/config/defaults.xml
+
+Inside that folder, you should also see:
+
+databases/
+
+ords/
+
+settings.xml
+
+log/log.xml (optional)
+
+defaults.xml
+
+
+This confirms the correct ORDS config path.
+
+
+---
+
+2. Backup the Existing Configuration
+
+Before making changes:
+
+cp defaults.xml defaults.xml.backup_$(date +%F)
+
+This allows easy rollback.
+
+
+---
+
+3. Open defaults.xml for Editing
+
+Use vi, nano, or any server editor:
+
+vi defaults.xml
+
+Inside, you will see something like:
+
+<properties>
+    <entry key="jdbc.InitialLimit">10</entry>
+    <entry key="security.disableDbAuth">false</entry>
+    ...
+</properties>
+
+This is where you will add the fix.
+
+
+---
+
+4. Add the Cookie Path Entry
+
+Inside the <properties> block, add this line:
+
+<entry key="security.cookie.path">/ords/catreport/</entry>
+
+Make sure it is placed inside the <properties> section.
+
+✔ Correct Example:
+
+<properties>
+    <entry key="jdbc.InitialLimit">10</entry>
+    <entry key="security.cookie.path">/ords/catreport/</entry>
+    <entry key="security.disableDbAuth">false</entry>
+</properties>
+
+❌ Incorrect (will NOT work):
+
+(Entry outside properties)
+</properties>
+<entry key="security.cookie.path">/ords/catreport/</entry>
+
+Placement is very important.
+
+
+---
+
+5. Save the File
+
+In vi:
+
+Press Esc
+
+Type :wq
+
+Press Enter
+
+
+
+---
+
+6. Set Correct Permissions (if necessary)
+
+ORDS on WebLogic typically runs under user oracle or weblogic.
+
+Make sure the file ownership is correct:
+
+chown oracle:oinstall defaults.xml
+chmod 600 defaults.xml
+
+(Replace with the actual user/group).
+
+
+---
+
+7. Restart WebLogic Managed Server Running ORDS
+
+ORDS reads the config only at startup, so you MUST restart.
+
+Using WebLogic Admin Console:
+
+1. Sign in to WebLogic Console
+
+
+2. Navigate: Domain → Environment → Servers
+
+
+3. Locate the ORDS managed server (example: ords_server1)
+
+
+4. Click Shutdown → Force Shutdown
+
+
+5. After it stops, click Start
+
+
+6. Wait until it shows the RUNNING state
+
+
+
+Using command line:
+
+stopManagedWebLogic.sh ords_server1
+startManagedWebLogic.sh ords_server1
+
+Do NOT redeploy the ORDS WAR. Restart is enough.
+
+
+---
+
+8. Verify the Fix
+
+Use curl or PowerShell:
+
+PowerShell:
+
 (Invoke-WebRequest -Uri "https://eresxpress-reports-cat.1dc.com/ords/catreport/" -Method GET).Headers["Set-Cookie"]
+
+You MUST see:
+
+ORA_WWV_APP_1103=...; Path=/ords/catreport/; Secure; HttpOnly; SameSite=Lax
+
+If Path=/ords/catreport → FIX SUCCESSFUL
+If Path=/ or empty → FIX NOT APPLIED
+
+
+---
+
+9. Confirm Through Browser Tools (Optional)
+
+In Chrome:
+
+1. Press F12
+
+
+2. Go to Application tab
+
+
+3. Expand Cookies
+
+
+4. Select your domain
+
+
+5. Look for cookie starting with:
+
+
+
+ORA_WWV_
+
+6. Check the Path column → must show:
+
+
+
+/ords/catreport/
