@@ -51,3 +51,151 @@ https://eresxpress-reports-cat.1dc.com/ords/catreport/r/cat/eresp103/reportslist
 
 
 https://eresxpress-reports-cat.1dc.com/ords/_/db-api/stats
+
+
+
+
+✅ DETAILED FIX STEPS FOR COOKIE PATH VULNERABILITY
+
+(Oracle APEX + ORDS on WebLogic)
+
+
+---
+
+1. Identify your ORDS configuration directory
+
+ORDS deployed on WebLogic has an external config folder separate from the WAR file.
+
+Common locations:
+
+/u01/ords/config/
+
+/opt/oracle/ords/config/
+
+/home/oracle/ords/config/
+
+/etc/ords/config/
+
+Inside the folder you must find:
+
+defaults.xml
+
+If unsure, run on the server:
+
+find / -name "defaults.xml" 2>/dev/null
+
+
+---
+
+2. Open defaults.xml
+
+The file looks like:
+
+<properties>
+    <entry key="jdbc.Authorizations">...</entry>
+    <entry key="security.disableDbAuth">...</entry>
+    ...
+</properties>
+
+
+---
+
+3. Add the cookie path entry (the fix)
+
+Inside <properties>...</properties> add the following line:
+
+<entry key="security.cookie.path">/ords/catreport/</entry>
+
+Example final section:
+
+<properties>
+    <entry key="jdbc.InitialLimit">10</entry>
+    <entry key="security.cookie.path">/ords/catreport/</entry>
+</properties>
+
+⚠️ Do NOT put it outside <properties>
+⚠️ Do NOT add spaces or tabs in the key name
+
+
+---
+
+4. Save the file
+
+Ensure the file permissions stay the same:
+
+chmod 600 defaults.xml      (if originally 600)
+chown oracle:oracle defaults.xml   (or original owner)
+
+
+---
+
+5. Restart WebLogic (MANDATORY)
+
+ORDS running on WebLogic reads defaults.xml only during startup.
+
+Restart sequence:
+
+1. Sign into WebLogic Admin Console
+
+
+2. Go to Domain Structure → Environment → Servers
+
+
+3. Find the Managed Server hosting ORDS (e.g., ords_server1)
+
+
+4. Click Stop
+
+
+5. After it stops, click Start
+
+
+6. Wait 1–2 minutes for deployment
+
+
+
+Alternatively, command line:
+
+stopManagedWebLogic.sh ords_server1
+startManagedWebLogic.sh ords_server1
+
+No need to redeploy ORDS — restarting is enough.
+
+
+---
+
+6. Verify the fix
+
+Run:
+
+curl -I "https://eresxpress-reports-cat.1dc.com/ords/catreport/r/cat/eresp103/reportslist"
+
+Look for:
+
+Set-Cookie: ORA_WWV_APP_1103=...; Path=/ords/catreport/; Secure; HttpOnly
+
+If Path=/ords/catreport/ appears, you have fully fixed the issue.
+
+
+---
+
+7. Browser verification (simple check)
+
+1. Open the app
+
+
+2. Press F12 → Application → Cookies (in Chrome)
+
+
+3. Select domain
+
+
+4. Check cookie name:
+
+
+
+ORA_WWV_APP_1103
+
+You must see:
+
+Path = /ords/catreport/
