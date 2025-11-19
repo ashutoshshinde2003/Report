@@ -15,6 +15,8 @@ buid=1.AS0AHzqHEY1MDUWN--N6LiVX-I-QibUr9-JAgKd7ITebsQQtAAAtAA.AQABGgEAAABlMNzVhA
 NSC_JO1u5bkbbufb1k4ewgpu5fc454n1xeQ
 
 
+(Invoke-WebRequest -Uri "https://eresxpress-reports-cat.1dc.com/ords/catreport/r/cat/eresp103/reportslist" -Method GET).Headers."Set-Cookie"
+
 
 
 
