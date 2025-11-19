@@ -7,19 +7,4 @@ buid=1.AS0AHzqHEY1MDUWN--N6LiVX-I-QibUr9-JAgKd7ITebsQQtAAAtAA.AQABGgEAAABlMNzVhA
 
 
 
-/opt/oracle/ords/conf/ords/ords_params.properties
-
-
-
-
-sudo nano /opt/oracle/ords/conf/ords/ords_params.properties
-
-
-
-
-security.cookies.path=/ords/${apex.app_alias}
-
-
-
-
-sudo systemctl restart ords
+https://eresxpress-reports-cat.1dc.com/ords/catreport/r/cat/eresp103/reportslist?session=11355971342972
