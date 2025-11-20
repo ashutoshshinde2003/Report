@@ -208,3 +208,27 @@ ORA_WWV_
 
 
 /ords/catreport/
+
+
+
+
+
+DECLARE
+  v_result     NUMBER;
+  v_error_msg  VARCHAR2(4000);
+BEGIN
+  v_result := FN_QUEUE_DTL_PTS_COUNT(
+                i_system            => 'NORTH',
+                i_allianceId        => '1014',
+                i_queueId           => 89,
+                i_subQueueId        => NULL,
+                i_creditriskuser    => NULL,
+                i_allinventoryuser  => NULL,
+                i_disputeuser       => 'Y',
+                o_error_msg         => v_error_msg
+              );
+
+  DBMS_OUTPUT.PUT_LINE('RESULT = ' || v_result);
+  DBMS_OUTPUT.PUT_LINE('ERROR  = ' || v_error_msg);
+END;
+/
