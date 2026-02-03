@@ -1,0 +1,116 @@
+SELECT   
+		'MERGE'                                            METADATA
+        ,'PositionExtraInfo'                               PositionExtraInfo
+        ,HIKM.SOURCE_SYSTEM_ID                             SourceSystemId
+        ,HIKM.SOURCE_SYSTEM_OWNER                          SourceSystemOwner
+        ,TO_CHAR(ppeif.EFFECTIVE_START_DATE,'YYYY/MM/DD')  EffectiveStartDate
+        ,TO_CHAR(ppeif.EFFECTIVE_END_DATE,'YYYY/MM/DD')    EffectiveEndDate
+        ,hapf.POSITION_ID                                  PositionId 
+        ,hapf.POSITION_CODE                                PositionCode
+		,ppeif.POSITION_EXTRA_INFO_ID      		  		   PositionExtraInfoId
+		,ppeif.INFORMATION_TYPE 						   InformationType
+		,ppeif.LEGISLATION_CODE 						   LegislationCode
+		,ppeif.POEI_INFORMATION_CATEGORY 			       PoeiInformationCategory
+		,ppeif.SEQUENCE_NUMBER 							   SequenceNumber
+		,hapft.NAME                              		PositionName
+		
+		,(SELECT HK_PER.SOURCE_SYSTEM_ID 
+		FROM HRC_INTEGRATION_KEY_MAP HK_PER 
+		WHERE HK_PER.SURROGATE_ID = ppeif.POSITION_ID
+		AND UPPER(HK_PER.OBJECT_NAME) = 'POSITION')"PositionId(SourceSystemId)"
+		
+		,(Select ppec.CATEGORY_CODE from per_pos_eit_category ppec
+		  where ppec.position_ID= hapf.position_ID)"EFF_CATEGORY_CODE"
+		
+		
+		,ppeif.POEI_INFORMATION_CATEGORY                   "Flexfield Context"
+		,ppeif.POEI_INFORMATION_NUMBER1                    "Seq#"
+		--,ppeif.POEI_INFORMATION3                           Account
+		,(Select ffvv.description
+			FROM fnd_flex_value_sets ffvs ,
+			fnd_flex_values_vl ffvv
+			where 
+			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
+			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_ACCOUNT'
+			AND ffvv.flex_value=ppeif.POEI_INFORMATION3)  Account 
+		
+		--,ppeif.POEI_INFORMATION4                           CO_TASK
+		,(Select ffvv.description
+			FROM fnd_flex_value_sets ffvs ,
+			fnd_flex_values_vl ffvv
+			where 
+			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
+			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_CO_TASK'
+			AND ffvv.flex_value=ppeif.POEI_INFORMATION4)  CO_TASK 
+		
+		--,ppeif.POEI_INFORMATION5                           CO_TYPE
+		,(Select ffvv.description
+			FROM fnd_flex_value_sets ffvs ,
+			fnd_flex_values_vl ffvv
+			where 
+			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
+			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_CO_TYPE'
+			AND ffvv.flex_value=ppeif.POEI_INFORMATION5 )  CO_TYPE
+		
+		--,ppeif.POEI_INFORMATION1                           CORP
+		,(Select ffvv.description
+			FROM fnd_flex_value_sets ffvs ,
+			fnd_flex_values_vl ffvv
+			where 
+			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
+			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_CORP'
+			AND ffvv.flex_value=ppeif.POEI_INFORMATION1 )  CORP
+		
+		--,ppeif.POEI_INFORMATION2                           "MGMT_CTR"
+		,(Select ffvv.description
+			FROM fnd_flex_value_sets ffvs ,
+			fnd_flex_values_vl ffvv
+			where 
+			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
+			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_MGMT_CTR'
+			AND ffvv.flex_value=ppeif.POEI_INFORMATION2)   "MGMT_CTR"
+		
+		--,ppeif.POEI_INFORMATION7                           "NJT_LINE_CODE"
+		,(Select ffvv.description
+			FROM fnd_flex_value_sets ffvs ,
+			fnd_flex_values_vl ffvv
+			where 
+			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
+			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_LINE_CODE'
+			AND ffvv.flex_value=ppeif.POEI_INFORMATION7)   "NJT_LINE_CODE"
+		
+		--,ppeif.POEI_INFORMATION6                           "PURPOSE_CODE"
+		,(Select ffvv.description
+			FROM fnd_flex_value_sets ffvs ,
+			fnd_flex_values_vl ffvv
+			where 
+			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
+			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_PURPOSE_CODE'
+			AND ffvv.flex_value=ppeif.POEI_INFORMATION6)   "PURPOSE_CODE"
+		
+		,ppeif.POEI_INFORMATION_NUMBER2                    "User %"
+		
+		
+
+
+FROM 
+        HRC_INTEGRATION_KEY_MAP HIKM
+		,HR_ALL_POSITIONS_F hapf
+		,PER_POSITION_EXTRA_INFO_F ppeif
+		,HR_ALL_POSITIONS_F_TL hapft
+WHERE   1=1
+AND (HIKM.OBJECT_NAME) = 'PositionExtraInformation'
+AND      ppeif.POSITION_EXTRA_INFO_ID = HIKM.SURROGATE_ID
+AND      hapf.POSITION_ID = ppeif.POSITION_ID 
+AND      ppeif.EFFECTIVE_START_DATE BETWEEN hapf.EFFECTIVE_START_DATE AND hapf.EFFECTIVE_END_DATE
+AND      hapf.POSITION_ID = hapft.POSITION_ID 
+AND      ppeif.EFFECTIVE_START_DATE BETWEEN hapft.EFFECTIVE_START_DATE AND hapft.EFFECTIVE_END_DATE
+AND      userenv('LANG') = hapft.language
+AND      ppeif.created_by = 'FUSION_APPS_HCM_ESS_LOADER_APPID'
+AND      ppeif.POEI_INFORMATION_CATEGORY='Funding Profile'
+AND (HIKM.source_system_owner IN (:p_Source_owner) OR COALESCE(:p_Source_owner,NULL) IS NULL)
+Order By HIKM.SOURCE_SYSTEM_ID,ppeif.EFFECTIVE_START_DATE
+
+
+
+select distinct
