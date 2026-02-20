@@ -1,116 +1,203 @@
-SELECT   
-		'MERGE'                                            METADATA
-        ,'PositionExtraInfo'                               PositionExtraInfo
-        ,HIKM.SOURCE_SYSTEM_ID                             SourceSystemId
-        ,HIKM.SOURCE_SYSTEM_OWNER                          SourceSystemOwner
-        ,TO_CHAR(ppeif.EFFECTIVE_START_DATE,'YYYY/MM/DD')  EffectiveStartDate
-        ,TO_CHAR(ppeif.EFFECTIVE_END_DATE,'YYYY/MM/DD')    EffectiveEndDate
-        ,hapf.POSITION_ID                                  PositionId 
-        ,hapf.POSITION_CODE                                PositionCode
-		,ppeif.POSITION_EXTRA_INFO_ID      		  		   PositionExtraInfoId
-		,ppeif.INFORMATION_TYPE 						   InformationType
-		,ppeif.LEGISLATION_CODE 						   LegislationCode
-		,ppeif.POEI_INFORMATION_CATEGORY 			       PoeiInformationCategory
-		,ppeif.SEQUENCE_NUMBER 							   SequenceNumber
-		,hapft.NAME                              		PositionName
-		
-		,(SELECT HK_PER.SOURCE_SYSTEM_ID 
-		FROM HRC_INTEGRATION_KEY_MAP HK_PER 
-		WHERE HK_PER.SURROGATE_ID = ppeif.POSITION_ID
-		AND UPPER(HK_PER.OBJECT_NAME) = 'POSITION')"PositionId(SourceSystemId)"
-		
-		,(Select ppec.CATEGORY_CODE from per_pos_eit_category ppec
-		  where ppec.position_ID= hapf.position_ID)"EFF_CATEGORY_CODE"
-		
-		
-		,ppeif.POEI_INFORMATION_CATEGORY                   "Flexfield Context"
-		,ppeif.POEI_INFORMATION_NUMBER1                    "Seq#"
-		--,ppeif.POEI_INFORMATION3                           Account
-		,(Select ffvv.description
-			FROM fnd_flex_value_sets ffvs ,
-			fnd_flex_values_vl ffvv
-			where 
-			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
-			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_ACCOUNT'
-			AND ffvv.flex_value=ppeif.POEI_INFORMATION3)  Account 
-		
-		--,ppeif.POEI_INFORMATION4                           CO_TASK
-		,(Select ffvv.description
-			FROM fnd_flex_value_sets ffvs ,
-			fnd_flex_values_vl ffvv
-			where 
-			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
-			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_CO_TASK'
-			AND ffvv.flex_value=ppeif.POEI_INFORMATION4)  CO_TASK 
-		
-		--,ppeif.POEI_INFORMATION5                           CO_TYPE
-		,(Select ffvv.description
-			FROM fnd_flex_value_sets ffvs ,
-			fnd_flex_values_vl ffvv
-			where 
-			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
-			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_CO_TYPE'
-			AND ffvv.flex_value=ppeif.POEI_INFORMATION5 )  CO_TYPE
-		
-		--,ppeif.POEI_INFORMATION1                           CORP
-		,(Select ffvv.description
-			FROM fnd_flex_value_sets ffvs ,
-			fnd_flex_values_vl ffvv
-			where 
-			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
-			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_CORP'
-			AND ffvv.flex_value=ppeif.POEI_INFORMATION1 )  CORP
-		
-		--,ppeif.POEI_INFORMATION2                           "MGMT_CTR"
-		,(Select ffvv.description
-			FROM fnd_flex_value_sets ffvs ,
-			fnd_flex_values_vl ffvv
-			where 
-			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
-			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_MGMT_CTR'
-			AND ffvv.flex_value=ppeif.POEI_INFORMATION2)   "MGMT_CTR"
-		
-		--,ppeif.POEI_INFORMATION7                           "NJT_LINE_CODE"
-		,(Select ffvv.description
-			FROM fnd_flex_value_sets ffvs ,
-			fnd_flex_values_vl ffvv
-			where 
-			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
-			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_LINE_CODE'
-			AND ffvv.flex_value=ppeif.POEI_INFORMATION7)   "NJT_LINE_CODE"
-		
-		--,ppeif.POEI_INFORMATION6                           "PURPOSE_CODE"
-		,(Select ffvv.description
-			FROM fnd_flex_value_sets ffvs ,
-			fnd_flex_values_vl ffvv
-			where 
-			ffvs.FLEX_VALUE_SET_ID = ffvv.FLEX_VALUE_SET_ID
-			AND ffvs.FLEX_VALUE_SET_NAME ='NJT_PURPOSE_CODE'
-			AND ffvv.flex_value=ppeif.POEI_INFORMATION6)   "PURPOSE_CODE"
-		
-		,ppeif.POEI_INFORMATION_NUMBER2                    "User %"
-		
-		
+/*********************************************************************************************
+-- REPORT RICEID   : NJT_Report
+-- REPORT NAME     : PR_OPS_AT_YE_ACCRUALS REPORT 
+-- MODULE          : Absence
+-- CHANGE HISTORY  :
+-- Version   Date           Author           Description
+-- -------   ----           -------          -----------------------------------------------
+-- 1.0       13-10-2025    Gaurav Beliya    Initial Version
+-- 2.0       06-11-2025    Kadir            Peer review comments - Original Hire date Changed, Emp Status Changed,
+*********************************************************************************************/
+WITH base AS
+(
+  SELECT
+      PAPF.PERSON_NUMBER                                    AS "Person Number",
+      PPNF.LAST_NAME || ', ' || PPNF.FIRST_NAME             AS "Name",
+      PAAM.BARGAINING_UNIT_CODE                             AS "Bargaining Unit",
+      PCAF.IDENTIFICATION_CODE                              AS "Group Code",
+      PPEI.PEI_INFORMATION_NUMBER1                          AS "Rail Vac Qual Yr",
+      AAPFT.NAME                                            AS "Leave Policy Code",
+
+      (SELECT TO_CHAR(MAX(PSDF1.SENIORITY_DATE), 'MM/DD/YYYY')
+         FROM PER_SENIORITY_DATES_F PSDF1
+        WHERE PSDF1.PERSON_ID(+)          = PAPF.PERSON_ID
+          AND PSDF1.SENIORITY_DATE_CODE   = 'SENIORITY'
+      )                                                     AS "Seniority Date",
+
+      (SELECT TO_CHAR(MAX(PSDF1.SENIORITY_DATE), 'MM/DD/YYYY')
+         FROM PER_SENIORITY_DATES_F PSDF1
+        WHERE PSDF1.PERSON_ID(+)          = PAPF.PERSON_ID
+          AND PSDF1.SENIORITY_DATE_CODE   = 'VACATION_SERVICE'
+      )                                                     AS "Vacation Service Date",
+
+      (SELECT TO_CHAR(MAX(PSDF1.SENIORITY_DATE), 'MM/DD/YYYY')
+         FROM PER_SENIORITY_DATES_F PSDF1
+        WHERE PSDF1.PERSON_ID(+)          = PAPF.PERSON_ID
+          AND PSDF1.SENIORITY_DATE_CODE   = 'ORIGINAL_HIRE'
+      )                                                     AS "Original Hire Date",
+
+      (SELECT USER_STATUS
+         FROM PER_ASSIGNMENT_STATUS_TYPES_VL PAST
+        WHERE PAST.ASSIGNMENT_STATUS_TYPE_ID = PAAM.ASSIGNMENT_STATUS_TYPE_ID
+      )                                                     AS "Emp Status Type",
+
+      PAAM.ASSIGNMENT_STATUS_TYPE                           AS "Emp Status",
+
+      /* ---- NUMERIC: Previous Year Carryover ---- */
+      CAST(
+        NVL((
+            SELECT TO_NUMBER(SUM(TO_NUMBER(AED.VALUE)))
+              FROM ANC_PER_ACCRUAL_ENTRIES AAE,
+                   ANC_PER_ACRL_ENTRY_DTLS AED
+             WHERE AAE.PER_PLAN_ENRT_ID          = APPE.PER_PLAN_ENRT_ID
+               AND AED.PER_ACCRUAL_ENTRY_ID      = AAE.PER_ACCRUAL_ENTRY_ID
+               AND AED.TYPE                      = 'COVR'
+               AND AAE.ACCRUAL_PERIOD            = APPE.LAST_ACCRUAL_RUN
+        ), 0)
+      AS NUMBER)                                            AS "Previous Year Carryover",
+
+      /* ---- NUMERIC: Excess Time Overcap ---- */
+      CAST(
+        NVL((
+            SELECT SUM(TO_NUMBER(AED2.VALUE))
+              FROM ANC_PER_ACCRUAL_ENTRIES AAE2,
+                   ANC_PER_ACRL_ENTRY_DTLS AED2
+             WHERE AAE2.PER_PLAN_ENRT_ID         = APPE.PER_PLAN_ENRT_ID
+               AND AED2.PER_ACCRUAL_ENTRY_ID     = AAE2.PER_ACCRUAL_ENTRY_ID
+               AND AED2.TYPE                     = 'FORFT'
+               AND AAE2.ACCRUAL_PERIOD           = APPE.LAST_ACCRUAL_RUN
+        ), 0)
+      AS NUMBER)                                            AS "Excess Time Overcap",
+
+      
+
+      /* ---- NUMERIC: Current Year Adjustment ---- */
+      CAST(
+        NVL((
+            SELECT TO_NUMBER(SUM(TO_NUMBER(A.VALUE)))
+              FROM ANC_PER_ACRL_ENTRY_DTLS A
+             WHERE A.TYPE             = 'ADJOTH'
+               AND A.PERSON_ID        = PAPF.PERSON_ID
+               AND A.PER_PLAN_ENRT_ID = APPE.PER_PLAN_ENRT_ID
+               AND APPE.ENRT_ST_DT BETWEEN PAPF.EFFECTIVE_START_DATE AND PAPF.EFFECTIVE_END_DATE
+        ), 0)
+      AS NUMBER)                                            AS "Current Year Adjustment",
+
+      /* ---- NUMERIC: Absence Taken ---- */
+      CAST(
+        NVL((
+            SELECT SUM(TO_NUMBER(AED5.VALUE))
+              FROM ANC_PER_ACCRUAL_ENTRIES AAE5,
+                   ANC_PER_ACRL_ENTRY_DTLS AED5
+             WHERE AAE5.PER_PLAN_ENRT_ID        = APPE.PER_PLAN_ENRT_ID
+               AND AAE5.PLAN_ID                 = APPE.PLAN_ID
+               AND AED5.PER_ACCRUAL_ENTRY_ID    = AAE5.PER_ACCRUAL_ENTRY_ID
+               AND AED5.TYPE                    = 'ABS'
+               AND AAE5.ACCRUAL_PERIOD          = APPE.LAST_ACCRUAL_RUN
+        ), (
+            SELECT TO_NUMBER(AAE6.USED)
+              FROM ANC_PER_ACCRUAL_ENTRIES AAE6
+             WHERE AAE6.PER_PLAN_ENRT_ID        = APPE.PER_PLAN_ENRT_ID
+               AND AAE6.PLAN_ID                 = APPE.PLAN_ID
+               AND AAE6.ACCRUAL_PERIOD          = APPE.LAST_ACCRUAL_RUN
+        ))
+      AS NUMBER)                                            AS "Absence Taken",
+
+      /* ---- NUMERIC: Current Year Accrual ---- */
+      CAST(
+        ROUND(
+          NVL((
+              SELECT SUM(TO_NUMBER(AED3.VALUE))
+                FROM ANC_PER_ACCRUAL_ENTRIES AAE3,
+                     ANC_PER_ACRL_ENTRY_DTLS AED3
+               WHERE AAE3.PER_PLAN_ENRT_ID        = APPE.PER_PLAN_ENRT_ID
+                 AND AAE3.PLAN_ID                 = APPE.PLAN_ID
+                 AND AED3.PER_ACCRUAL_ENTRY_ID    = AAE3.PER_ACCRUAL_ENTRY_ID
+                 AND AED3.TYPE                    = 'ACRL'
+                 AND AAE3.ACCRUAL_PERIOD BETWEEN TRUNC(APPE.ENRT_ST_DT, 'YYYY')
+                                             AND ADD_MONTHS(TRUNC(APPE.ENRT_ST_DT, 'YYYY'), 12) - 1
+                 AND AAE3.ACCRUAL_PERIOD          >= NVL(APPE.ENRT_ST_DT, DATE '0001-01-01')
+                 AND AAE3.ACCRUAL_PERIOD          <= NVL(APPE.ENRT_END_DT, DATE '4712-12-31')
+          ), (
+              SELECT SUM(TO_NUMBER(AAE4.ACCRUED))
+                FROM ANC_PER_ACCRUAL_ENTRIES AAE4
+               WHERE AAE4.PER_PLAN_ENRT_ID        = APPE.PER_PLAN_ENRT_ID
+                 AND AAE4.PLAN_ID                 = APPE.PLAN_ID
+                 AND AAE4.ACCRUAL_PERIOD BETWEEN TRUNC(APPE.ENRT_ST_DT, 'YYYY')
+                                             AND ADD_MONTHS(TRUNC(APPE.ENRT_ST_DT, 'YYYY'), 12) - 1
+                 AND AAE4.ACCRUAL_PERIOD          >= NVL(APPE.ENRT_ST_DT, DATE '0001-01-01')
+                 AND AAE4.ACCRUAL_PERIOD          <= NVL(APPE.ENRT_END_DT, DATE '4712-12-31')
+          )),
+          2
+        )
+      AS NUMBER)                                            AS "Current Year Accrual"
+
+  FROM
+      PER_PERSON_SECURED_LIST_V    PAPF,
+      PER_PERSON_NAMES_F           PPNF,
+      PER_ALL_ASSIGNMENTS_M        PAAM,
+      PER_COL_AGREEMENTS_F         PCAF,
+      PER_PERIODS_OF_SERVICE       PPOS,
+      ANC_PER_PLAN_ENROLLMENT      APPE,
+      ANC_ABSENCE_PLANS_F_TL       AAPFT,
+      PER_PEOPLE_EXTRA_INFO_F      PPEI,
+      PAY_PAY_RELATIONSHIPS_DN     PPR,
+      PAY_ALL_PAYROLLS_F           PAPRF,
+      PAY_PAYROLL_TERMS            PPT,
+      PAY_ASSIGNED_PAYROLLS_DN     APD,
+      HR_ALL_ORGANIZATION_UNITS    HAOU
+
+  WHERE 1 = 1
+    AND APPE.ENRT_ST_DT BETWEEN PAPF.EFFECTIVE_START_DATE        AND PAPF.EFFECTIVE_END_DATE
+    AND PAPF.PERSON_ID                = PPNF.PERSON_ID(+)
+    AND PPNF.NAME_TYPE(+)             = 'GLOBAL'
+    AND APPE.ENRT_ST_DT BETWEEN PPNF.EFFECTIVE_START_DATE(+)     AND PPNF.EFFECTIVE_END_DATE(+)
+    AND PAPF.PERSON_ID                = PAAM.PERSON_ID
+    AND APPE.ENRT_ST_DT BETWEEN PAAM.EFFECTIVE_START_DATE AND PAAM.EFFECTIVE_END_DATE
+    AND PAAM.ASSIGNMENT_TYPE          = 'E'
+    AND PAAM.PRIMARY_FLAG             = 'Y'
+    AND PAAM.EFFECTIVE_LATEST_CHANGE  = 'Y'
+    AND PAAM.COLLECTIVE_AGREEMENT_ID  = PCAF.COLLECTIVE_AGREEMENT_ID(+)
+    AND APPE.ENRT_ST_DT BETWEEN PCAF.EFFECTIVE_START_DATE(+)     AND PCAF.EFFECTIVE_END_DATE(+)
+    AND PAAM.PERIOD_OF_SERVICE_ID     = PPOS.PERIOD_OF_SERVICE_ID
+    AND PPOS.DATE_START = (SELECT MAX(A.DATE_START)
+                             FROM PER_PERIODS_OF_SERVICE A
+                            WHERE A.PERSON_ID = PAAM.PERSON_ID)
+    AND APPE.PERSON_ID(+)             = PAAM.PERSON_ID
+    AND AAPFT.LANGUAGE(+)             = USERENV('LANG')
+    AND AAPFT.ABSENCE_PLAN_ID(+)      = APPE.PLAN_ID
+    AND APPE.ENRT_ST_DT BETWEEN AAPFT.EFFECTIVE_START_DATE(+)    AND AAPFT.EFFECTIVE_END_DATE(+)
+    AND PPEI.PERSON_ID(+)             = PAPF.PERSON_ID
+    AND PPEI.PEI_INFORMATION_CATEGORY(+) = 'Absence Qualifying Years'
+    AND APPE.ENRT_ST_DT BETWEEN PPEI.EFFECTIVE_START_DATE(+)     AND PPEI.EFFECTIVE_END_DATE(+)
+    AND PPR.PERSON_ID(+)              = PAPF.PERSON_ID
+    AND APPE.ENRT_ST_DT BETWEEN PPR.START_DATE(+)                AND PPR.END_DATE(+)
+    AND PPT.PAYROLL_RELATIONSHIP_ID(+) = PPR.PAYROLL_RELATIONSHIP_ID
+    AND APPE.ENRT_ST_DT BETWEEN PPT.START_DATE(+)                AND PPT.END_DATE(+)
+    AND APD.PAYROLL_TERM_ID(+)        = PPT.PAYROLL_TERM_ID
+    AND PAPRF.PAYROLL_ID(+)           = APD.PAYROLL_ID
+    AND APPE.ENRT_ST_DT BETWEEN APD.START_DATE(+)                AND APD.END_DATE(+)
+    AND APPE.ENRT_ST_DT BETWEEN PAPRF.EFFECTIVE_START_DATE(+)    AND PAPRF.EFFECTIVE_END_DATE(+)
+    AND PAAM.BUSINESS_UNIT_ID         = HAOU.ORGANIZATION_ID(+)
+    AND ((COALESCE(NULL, :P_PAYROLL_TYPE) IS NULL) OR (PAPRF.PAYROLL_NAME IN (:P_PAYROLL_TYPE)))
+    AND (:P_ACCRUAL_TYPE IS NULL OR TRIM(REGEXP_SUBSTR(AAPFT.NAME, '^[^(]+')) = :P_ACCRUAL_TYPE)
+    AND (:P_BARGAINING_UNIT IS NULL OR PAAM.BARGAINING_UNIT_CODE IN (:P_BARGAINING_UNIT))
+    AND TO_CHAR(APPE.ENRT_ST_DT,'YYYY') IN (:P_YEAR)
+    AND APPE.ENRT_ST_DT BETWEEN APPE.ENRT_ST_DT AND APPE.ENRT_END_DT
+)
+SELECT
+    base.*,
+
+    /* NEW Balance as per your formula */
+   ROUND(
+    ABS(base."Previous Year Carryover")
+  + ABS(base."Current Year Adjustment")
+  + ABS(base."Current Year Accrual")
+  - ABS(base."Absence Taken"),
+  2
+) AS "Balance"
 
 
-FROM 
-        HRC_INTEGRATION_KEY_MAP HIKM
-		,HR_ALL_POSITIONS_F hapf
-		,PER_POSITION_EXTRA_INFO_F ppeif
-		,HR_ALL_POSITIONS_F_TL hapft
-WHERE   1=1
-AND (HIKM.OBJECT_NAME) = 'PositionExtraInformation'
-AND      ppeif.POSITION_EXTRA_INFO_ID = HIKM.SURROGATE_ID
-AND      hapf.POSITION_ID = ppeif.POSITION_ID 
-AND      ppeif.EFFECTIVE_START_DATE BETWEEN hapf.EFFECTIVE_START_DATE AND hapf.EFFECTIVE_END_DATE
-AND      hapf.POSITION_ID = hapft.POSITION_ID 
-AND      ppeif.EFFECTIVE_START_DATE BETWEEN hapft.EFFECTIVE_START_DATE AND hapft.EFFECTIVE_END_DATE
-AND      userenv('LANG') = hapft.language
-AND      ppeif.created_by = 'FUSION_APPS_HCM_ESS_LOADER_APPID'
-AND      ppeif.POEI_INFORMATION_CATEGORY='Funding Profile'
-AND (HIKM.source_system_owner IN (:p_Source_owner) OR COALESCE(:p_Source_owner,NULL) IS NULL)
-Order By HIKM.SOURCE_SYSTEM_ID,ppeif.EFFECTIVE_START_DATE
 
-
-
-select distinct
+FROM base
+ORDER BY base."Person Number"
